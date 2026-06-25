@@ -138,13 +138,15 @@ app_license = "mit"
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+doc_events = {
+	"Employee": {
+		"on_update": "artem_hrms.doc_events.employee.update_administrative_officer_permissions"
+	},
+	"Employee Checkin": {
+		"validate": "artem_hrms.doc_events.employee_checkin.employee_validation"
+	}
+}
+
 
 # Scheduled Tasks
 # ---------------
@@ -179,6 +181,10 @@ app_license = "mit"
 # extend_doctype_class = {
 # 	"Task": "artem_hrms.custom.task.CustomTaskMixin"
 # }
+
+override_doctype_class = {
+	"Department": "artem_hrms.doc_events.department.CustomDepartment"
+}
 
 # Overriding Methods
 # ------------------------------
