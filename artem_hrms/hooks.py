@@ -43,7 +43,10 @@ app_license = "mit"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-doctype_js = {"Employee" : "public/js/employee.js"}
+doctype_js = {
+	"Employee": "public/js/employee.js",
+	"HR Settings": "public/js/hr_settings.js"
+}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -151,23 +154,11 @@ doc_events = {
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"all": [
-# 		"artem_hrms.tasks.all"
-# 	],
-# 	"daily": [
-# 		"artem_hrms.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"artem_hrms.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"artem_hrms.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"artem_hrms.tasks.monthly"
-# 	],
-# }
+scheduler_events = {
+	"daily": [
+		"artem_hrms.tasks.daily_attendance_sync"
+	]
+}
 
 # Testing
 # -------
