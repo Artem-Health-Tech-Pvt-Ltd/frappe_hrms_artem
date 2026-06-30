@@ -5,21 +5,21 @@ from datetime import datetime
 def calculate_worked_hours(checkins):
 	"""
 	Calculates total worked hours from a chronological list of checkin logs.
-	Pairs consecutive 'IN' and 'OUT' log types.
+	Considers only the first 'IN' and the last 'OUT' log types for the day.
 	"""
-	total_hours = 0.0
-	last_in_time = None
+	in_times = [log.time for log in checkins if log.log_type == "IN"]
+	out_times = [log.time for log in checkins if log.log_type == "OUT"]
 
-	for log in checkins:
-		if log.log_type == "IN":
-			last_in_time = log.time
-		elif log.log_type == "OUT" and last_in_time:
-			diff = (log.time - last_in_time).total_seconds() / 3600.0
-			if diff > 0:
-				total_hours += diff
-			last_in_time = None
+	if not in_times or not out_times:
+		return 0.0
 
-	return round(total_hours, 2)
+	first_in_time = in_times[0]
+	last_out_time = out_times[-1]
+
+	diff = (last_out_time - first_in_time).total_seconds() / 3600.0
+	if diff > 0:
+		return round(diff, 2)
+	return 0.0
 
 def sync_attendance_for_date(target_date):
 	"""
