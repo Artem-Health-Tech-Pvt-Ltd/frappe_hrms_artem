@@ -177,6 +177,21 @@ override_doctype_class = {
 	"Department": "artem_hrms.doc_events.department.CustomDepartment"
 }
 
+
+fixtures = [
+    {
+        "dt": "Custom HTML Block",
+        "filters": [
+            ["name", "=", "Attendance-Dashboard"]
+        ]
+    },
+    {
+        "dt": "Server Script",
+        "filters": [
+            ["name", "=", "get-attendance-dashboard-data"]
+        ]
+    }
+]
 # Overriding Methods
 # ------------------------------
 #
