@@ -41,7 +41,7 @@ from hrms.hr.doctype.employee_checkin.employee_checkin import EmployeeCheckin
 class CustomEmployeeCheckin(EmployeeCheckin):
 
     def validate_distance_from_shift_location(self):
-        if self.checkin_source == "Biometric":
+        if self.custom_source == "Biometric":
             return
 
         super().validate_distance_from_shift_location()

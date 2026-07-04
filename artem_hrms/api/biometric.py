@@ -94,7 +94,7 @@ def checkin_ingest():
             doc.time = punch_time
             doc.log_type = punch_type
             doc.device_id = device_id
-            doc.checkin_source = "Biometric"
+            doc.custom_source = "Biometric"
             doc.skip_auto_attendance = 0
 
             doc.flags.ignore_permissions = True
