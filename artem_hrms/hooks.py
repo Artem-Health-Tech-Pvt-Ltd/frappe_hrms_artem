@@ -174,7 +174,8 @@ scheduler_events = {
 # }
 
 override_doctype_class = {
-	"Department": "artem_hrms.doc_events.department.CustomDepartment"
+	"Department": "artem_hrms.doc_events.department.CustomDepartment",
+	"Employee Checkin": "artem_hrms.doc_events.employee_checkin.CustomEmployeeCheckin",
 }
 
 

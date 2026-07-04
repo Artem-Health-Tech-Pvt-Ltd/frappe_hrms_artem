@@ -31,3 +31,17 @@ def employee_validation(doc, method=None):
 					employee.employee_name, relieving_date
 				)
 			)
+
+
+
+
+
+from hrms.hr.doctype.employee_checkin.employee_checkin import EmployeeCheckin
+
+class CustomEmployeeCheckin(EmployeeCheckin):
+
+    def validate_distance_from_shift_location(self):
+        if self.checkin_source == "Biometric":
+            return
+
+        super().validate_distance_from_shift_location()
