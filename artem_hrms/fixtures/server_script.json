@@ -1,6 +1,25 @@
 [
  {
   "allow_guest": 0,
+  "api_method": null,
+  "cron_format": null,
+  "disabled": 0,
+  "docstatus": 0,
+  "doctype": "Server Script",
+  "doctype_event": "After Save",
+  "enable_rate_limit": 0,
+  "event_frequency": "All",
+  "modified": "2026-07-06 12:21:27.480014",
+  "module": "Artem Hrms",
+  "name": "permission query ao",
+  "rate_limit_count": 5,
+  "rate_limit_seconds": 86400,
+  "reference_doctype": "Employee",
+  "script": "# ==========================================\n# PART 1: ADMIN OFFICER (AO) PERMISSIONS\n# ==========================================\n\n# 1. HANDLE AO REMOVAL / CHANGE (Clean up old permission)\n# Get the previous AO value from the database before this save\nold_ao = doc.get_db_value(\"custom_administrative_officer\")\n \n# If the AO changed or was removed, delete the old permission\nif old_ao and old_ao != doc.custom_administrative_officer:\n    old_ao_user = frappe.db.get_value(\"Employee\", old_ao, \"user_id\")\n\n    if old_ao_user:\n        permission_name = frappe.db.get_value(\n            \"User Permission\",\n            {\n                \"user\": old_ao_user,\n                \"allow\": \"Employee\",\n                \"for_value\": doc.name,\n            },\n            \"name\"\n        )\n \n        if permission_name:\n            frappe.get_doc(\"User Permission\", permission_name).delete()\n \n# 2. HANDLE NEW AO ASSIGNMENT (Apply new permission)\nif doc.custom_administrative_officer:\n    # Fetch the User ID of the newly assigned AO\n    new_ao_user = frappe.db.get_value(\"Employee\", doc.custom_administrative_officer, \"user_id\")\n\n    if new_ao_user:\n        # Verify if the permission already exists to avoid duplicates\n        permission_exists = frappe.db.exists(\"User Permission\", {\n            \"user\": new_ao_user,\n            \"allow\": \"Employee\",\n            \"for_value\": doc.name\n        })\n\n        # Create the new permission if it doesn't exist\n        if not permission_exists:\n            frappe.get_doc({\n                \"doctype\": \"User Permission\",\n                \"user\": new_ao_user,\n                \"allow\": \"Employee\",\n                \"for_value\": doc.name,\n                \"apply_to_all_doctypes\": 1\n            }).insert()\n\n\n# ==========================================\n# PART 2: HEAD OF DEPARTMENT (HOD) PERMISSIONS\n# ==========================================\n\n# 3. HANDLE HOD REMOVAL / CHANGE (Clean up old permission)\n# Get the previous HOD value from the database before this save\nold_hod = doc.get_db_value(\"custom_hod\")\n \n# If the HOD changed or was removed, delete the old permission\nif old_hod and old_hod != doc.custom_hod:\n    old_hod_user = frappe.db.get_value(\"Employee\", old_hod, \"user_id\")\n\n    if old_hod_user:\n        hod_permission_name = frappe.db.get_value(\n            \"User Permission\",\n            {\n                \"user\": old_hod_user,\n                \"allow\": \"Employee\",\n                \"for_value\": doc.name,\n            },\n            \"name\"\n        )\n \n        if hod_permission_name:\n            frappe.get_doc(\"User Permission\", hod_permission_name).delete()\n \n# 4. HANDLE NEW HOD ASSIGNMENT (Apply new permission)\nif doc.custom_hod:\n    # Fetch the User ID of the newly assigned HOD\n    new_hod_user = frappe.db.get_value(\"Employee\", doc.custom_hod, \"user_id\")\n\n    if new_hod_user:\n        # Verify if the permission already exists to avoid duplicates\n        hod_permission_exists = frappe.db.exists(\"User Permission\", {\n            \"user\": new_hod_user,\n            \"allow\": \"Employee\",\n            \"for_value\": doc.name\n        })\n\n        # Create the new permission if it doesn't exist\n        if not hod_permission_exists:\n            frappe.get_doc({\n                \"doctype\": \"User Permission\",\n                \"user\": new_hod_user,\n                \"allow\": \"Employee\",\n                \"for_value\": doc.name,\n                \"apply_to_all_doctypes\": 1\n            }).insert()",
+  "script_type": "DocType Event"
+ },
+ {
+  "allow_guest": 0,
   "api_method": "get_attendance_dashboard_data",
   "cron_format": null,
   "disabled": 0,

@@ -2,7 +2,7 @@ app_name = "artem_hrms"
 app_title = "Artem Hrms"
 app_publisher = "Artem"
 app_description = "Artem Hrms"
-app_email = "jay.patel@artemhealthtech.com"
+app_email = "uday.patel@artemhealthtech.com"
 app_license = "mit"
 
 # Apps
@@ -189,7 +189,19 @@ fixtures = [
     {
         "dt": "Server Script",
         "filters": [
-            ["name", "=", "get-attendance-dashboard-data"]
+            ["name", "in", ["get-attendance-dashboard-data", "permission query ao"]]
+        ]
+    },
+    {
+        "dt": "Custom Field",
+        "filters": [
+            ["dt", "in", ["Employee", "User"]]  # Added User
+        ]
+    },
+    {
+        "dt": "Property Setter",
+        "filters": [
+            ["doc_type", "in", ["Employee", "User"]] # Added User
         ]
     }
 ]
