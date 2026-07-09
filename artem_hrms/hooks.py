@@ -183,27 +183,16 @@ fixtures = [
     {
         "dt": "Custom HTML Block",
         "filters": [
-            ["name", "=", "Attendance-Dashboard"]
+            ["name", "in", ["Attendance-Table"]]
         ]
     },
     {
         "dt": "Server Script",
         "filters": [
-            ["name", "in", ["get-attendance-dashboard-data", "permission query ao"]]
+            ["name", "in", ["get_data_k"]]
         ]
     },
-    {
-        "dt": "Custom Field",
-        "filters": [
-            ["dt", "in", ["Employee", "User"]]  # Added User
-        ]
-    },
-    {
-        "dt": "Property Setter",
-        "filters": [
-            ["doc_type", "in", ["Employee", "User"]] # Added User
-        ]
-    }
+
 ]
 # Overriding Methods
 # ------------------------------
