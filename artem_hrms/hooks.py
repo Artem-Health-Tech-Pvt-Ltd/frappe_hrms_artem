@@ -192,6 +192,12 @@ fixtures = [
             ["name", "in", ["get_data_k"]]
         ]
     },
+    {
+        "dt": "Server Script",
+        "filters": [
+            ["name", "=", "permission query ao"]
+        ]
+    }
 
 ]
 # Overriding Methods
