@@ -180,19 +180,24 @@ override_doctype_class = {
 
 
 fixtures = [
-    {
-        "dt": "Custom HTML Block",
-        "filters": [
-            ["name", "in", ["Attendance-Table","Attendance-Dashboard"]]
-        ]
-    },
+    # {
+    #     "dt": "Custom HTML Block",
+    #     "filters": [
+    #         ["name", "in", ["Attendance-Table","Attendance-Dashboard"]]
+    #     ]
+    # },
+    # {
+    #     "dt": "Server Script",
+    #     "filters": [
+    #         ["name", "in", ["get_data_k","get-attendance-dashboard-data","checkin_restrict"]]
+    #     ]
+    # },
     {
         "dt": "Server Script",
         "filters": [
-            ["name", "in", ["get_data_k","get-attendance-dashboard-data","checkin_restrict"]]
+            ["name", "=", "permission query ao"]
         ]
-    },
-
+    }
 ]
 # Overriding Methods
 # ------------------------------
