@@ -183,19 +183,18 @@ fixtures = [
     {
         "dt": "Custom HTML Block",
         "filters": [
-            ["name", "in", ["Attendance-Table","Attendance-Dashboard"]]
+            ["name", "in", ["Attendance-Table", "Attendance-Dashboard"]]
         ]
     },
     {
         "dt": "Server Script",
         "filters": [
-            ["name", "in", ["get_data_k","get-attendance-dashboard-data","checkin_restrict"]]
-        ]
-    },
-    {
-        "dt": "Server Script",
-        "filters": [
-            ["name", "=", "permission query ao"]
+            ["name", "in", [
+                "permission query ao",
+                "checkin_restrict",
+                "get-attendance-dashboard-data",
+                "get_data_k"
+            ]]
         ]
     }
 ]
