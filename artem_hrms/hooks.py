@@ -196,7 +196,7 @@ fixtures = [
     {
         "dt": "Custom HTML Block",
         "filters": [
-            ["name", "=", "Attendance-Dashboard"]
+            ["name", "in", ["Attendance-Table", "Attendance-Dashboard"]]
         ]
     },
     {
@@ -215,6 +215,12 @@ fixtures = [
         "dt": "Property Setter",
         "filters": [
             ["doc_type", "in", ["Employee", "User"]]
+            ["name", "in", [
+                "permission query ao",
+                "checkin_restrict",
+                "get-attendance-dashboard-data",
+                "get_data_k"
+            ]]
         ]
     }
 ]
