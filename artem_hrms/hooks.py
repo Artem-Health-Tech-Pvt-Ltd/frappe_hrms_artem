@@ -28,10 +28,6 @@ add_to_apps_screen = [
 app_include_js = [
     "/assets/artem_hrms/js/redirect_bmc_hrms.js",
 ]
-app_include_js = [
-    "/assets/artem_hrms/js/redirect_bmc_hrms.js",
-]
-
 # include js, css files in header of web template
 # web_include_css = "/assets/artem_hrms/css/artem_hrms.css"
 # web_include_js = "/assets/artem_hrms/js/artem_hrms.js"
@@ -184,6 +180,18 @@ override_doctype_class = {
 
 
 fixtures = [
+    {
+        "dt": "Workspace",
+        "filters": [
+            ["name", "=", "BMC HRMS"]
+        ]
+    },
+    {
+        "dt": "Desktop Icon",
+        "filters": [
+            ["label", "=", "BMC HRMS"]
+        ]
+    },
     {
         "dt": "Custom HTML Block",
         "filters": [
