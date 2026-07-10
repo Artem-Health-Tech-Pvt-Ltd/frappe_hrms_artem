@@ -1,0 +1,24 @@
+[
+ {
+  "app": "artem_hrms",
+  "bg_color": "gray",
+  "docstatus": 0,
+  "doctype": "Desktop Icon",
+  "hidden": 0,
+  "icon": "users",
+  "icon_image": null,
+  "icon_type": "Link",
+  "label": "BMC HRMS",
+  "link": null,
+  "link_to": "BMC HRMS",
+  "link_type": "Workspace Sidebar",
+  "logo_url": "/assets/artem_hrms/images/bmc_hr_logo.svg",
+  "modified": "2026-07-10 19:32:06.953199",
+  "name": "BMC HRMS",
+  "parent_icon": null,
+  "restrict_removal": 0,
+  "roles": [],
+  "sidebar": null,
+  "standard": 1
+ }
+]
