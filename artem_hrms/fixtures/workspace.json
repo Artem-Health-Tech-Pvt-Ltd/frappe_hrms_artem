@@ -2,37 +2,19 @@
  {
   "app": "",
   "charts": [],
-<<<<<<< HEAD
-  "content": "[{\"id\":\"zLj3gdGW4n\",\"type\":\"custom_block\",\"data\":{\"custom_block_name\":\"attendance-dashboard-k\",\"col\":12}}]",
-  "custom_blocks": [
-   {
-    "custom_block_name": "attendance-dashboard-k",
-    "label": "attendance-dashboard-k"
-   }
-  ],
-=======
   "content": "[{\"id\":\"SqU1QHN54X\",\"type\":\"card\",\"data\":{\"card_name\":\"Attendance\",\"col\":4}},{\"id\":\"7zAJfT1peU\",\"type\":\"card\",\"data\":{\"card_name\":\"Shift\",\"col\":4}}]",
   "custom_blocks": [],
->>>>>>> 525f3a6 (Add the logo of artem)
   "docstatus": 0,
   "doctype": "Workspace",
   "external_link": null,
   "for_user": "",
   "hide_custom": 0,
-<<<<<<< HEAD
-  "icon": "/assets/artem_hrms/images/bmc_hr_logo.png",
-=======
   "icon": "/assets/artem_hrms/images/bmc_hr_logo.svg",
->>>>>>> 525f3a6 (Add the logo of artem)
   "indicator_color": "green",
   "is_hidden": 0,
   "label": "BMC HRMS",
   "link_to": null,
   "link_type": "DocType",
-<<<<<<< HEAD
-  "links": [],
-  "modified": "2026-07-10 17:59:31.464537",
-=======
   "links": [
    {
     "dependencies": null,
@@ -126,7 +108,6 @@
    }
   ],
   "modified": "2026-07-10 20:00:11.763362",
->>>>>>> 525f3a6 (Add the logo of artem)
   "module": "",
   "name": "BMC HRMS",
   "number_cards": [],
