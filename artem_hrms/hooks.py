@@ -183,7 +183,19 @@ override_doctype_class = {
 fixtures = [
     {
         "dt": "Workspace",
+<<<<<<< HEAD
         "filters": [["name", "=", "BMC HRMS"]]
+=======
+        "filters": [
+            ["name", "=", "BMC HRMS"]
+        ]
+    },
+    {
+        "dt": "Desktop Icon",
+        "filters": [
+            ["label", "=", "BMC HRMS"]
+        ]
+>>>>>>> 525f3a6 (Add the logo of artem)
     },
     {
         "dt": "Custom HTML Block",

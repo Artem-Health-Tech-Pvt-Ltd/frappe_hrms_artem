@@ -2,6 +2,7 @@
  {
   "app": "",
   "charts": [],
+<<<<<<< HEAD
   "content": "[{\"id\":\"zLj3gdGW4n\",\"type\":\"custom_block\",\"data\":{\"custom_block_name\":\"attendance-dashboard-k\",\"col\":12}}]",
   "custom_blocks": [
    {
@@ -9,19 +10,123 @@
     "label": "attendance-dashboard-k"
    }
   ],
+=======
+  "content": "[{\"id\":\"SqU1QHN54X\",\"type\":\"card\",\"data\":{\"card_name\":\"Attendance\",\"col\":4}},{\"id\":\"7zAJfT1peU\",\"type\":\"card\",\"data\":{\"card_name\":\"Shift\",\"col\":4}}]",
+  "custom_blocks": [],
+>>>>>>> 525f3a6 (Add the logo of artem)
   "docstatus": 0,
   "doctype": "Workspace",
   "external_link": null,
   "for_user": "",
   "hide_custom": 0,
+<<<<<<< HEAD
   "icon": "/assets/artem_hrms/images/bmc_hr_logo.png",
+=======
+  "icon": "/assets/artem_hrms/images/bmc_hr_logo.svg",
+>>>>>>> 525f3a6 (Add the logo of artem)
   "indicator_color": "green",
   "is_hidden": 0,
   "label": "BMC HRMS",
   "link_to": null,
   "link_type": "DocType",
+<<<<<<< HEAD
   "links": [],
   "modified": "2026-07-10 17:59:31.464537",
+=======
+  "links": [
+   {
+    "dependencies": null,
+    "description": null,
+    "hidden": 0,
+    "icon": null,
+    "is_query_report": 0,
+    "label": "Attendance",
+    "link_count": 2,
+    "link_to": null,
+    "link_type": "DocType",
+    "onboard": 0,
+    "only_for": null,
+    "report_ref_doctype": null,
+    "type": "Card Break"
+   },
+   {
+    "dependencies": null,
+    "description": null,
+    "hidden": 0,
+    "icon": null,
+    "is_query_report": 0,
+    "label": "Attendance",
+    "link_count": 0,
+    "link_to": "Attendance",
+    "link_type": "DocType",
+    "onboard": 0,
+    "only_for": null,
+    "report_ref_doctype": null,
+    "type": "Link"
+   },
+   {
+    "dependencies": null,
+    "description": null,
+    "hidden": 0,
+    "icon": null,
+    "is_query_report": 0,
+    "label": "Check in ",
+    "link_count": 0,
+    "link_to": "Employee Checkin",
+    "link_type": "DocType",
+    "onboard": 0,
+    "only_for": null,
+    "report_ref_doctype": null,
+    "type": "Link"
+   },
+   {
+    "dependencies": null,
+    "description": null,
+    "hidden": 0,
+    "icon": null,
+    "is_query_report": 0,
+    "label": "Shift",
+    "link_count": 2,
+    "link_to": null,
+    "link_type": "DocType",
+    "onboard": 0,
+    "only_for": null,
+    "report_ref_doctype": null,
+    "type": "Card Break"
+   },
+   {
+    "dependencies": null,
+    "description": null,
+    "hidden": 0,
+    "icon": null,
+    "is_query_report": 0,
+    "label": "Shift Type",
+    "link_count": 0,
+    "link_to": "Shift Type",
+    "link_type": "DocType",
+    "onboard": 0,
+    "only_for": null,
+    "report_ref_doctype": null,
+    "type": "Link"
+   },
+   {
+    "dependencies": null,
+    "description": null,
+    "hidden": 0,
+    "icon": null,
+    "is_query_report": 0,
+    "label": "Shift Request",
+    "link_count": 0,
+    "link_to": "Shift Request",
+    "link_type": "DocType",
+    "onboard": 0,
+    "only_for": null,
+    "report_ref_doctype": null,
+    "type": "Link"
+   }
+  ],
+  "modified": "2026-07-10 20:00:11.763362",
+>>>>>>> 525f3a6 (Add the logo of artem)
   "module": "",
   "name": "BMC HRMS",
   "number_cards": [],
