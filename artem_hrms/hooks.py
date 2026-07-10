@@ -1,5 +1,5 @@
 app_name = "artem_hrms"
-app_title = "Artem Hrms"
+app_title = "BMC HRMS"
 app_publisher = "Artem"
 app_description = "Artem Hrms"
 app_email = "uday.patel@artemhealthtech.com"
@@ -11,22 +11,23 @@ app_license = "mit"
 # required_apps = []
 
 # Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "artem_hrms",
-# 		"logo": "/assets/artem_hrms/logo.png",
-# 		"title": "Artem Hrms",
-# 		"route": "/artem_hrms",
-# 		"has_permission": "artem_hrms.api.permission.has_app_permission"
-# 	}
-# ]
+add_to_apps_screen = [
+	{
+		"name": "artem_hrms",
+		"logo": "/assets/artem_hrms/logo.png",
+		"title": "BMC HRMS",
+		"route": "/artem_hrms"
+	}
+]
 
 # Includes in <head>
 # ------------------
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/artem_hrms/css/artem_hrms.css"
-# app_include_js = "/assets/artem_hrms/js/artem_hrms.js"
+app_include_js = [
+    "/assets/artem_hrms/js/redirect_bmc_hrms.js",
+]
 
 # include js, css files in header of web template
 # web_include_css = "/assets/artem_hrms/css/artem_hrms.css"
@@ -181,6 +182,10 @@ override_doctype_class = {
 
 fixtures = [
     {
+        "dt": "Workspace",
+        "filters": [["name", "=", "BMC HRMS"]]
+    },
+    {
         "dt": "Custom HTML Block",
         "filters": [
             ["name", "=", "Attendance-Dashboard"]
@@ -195,16 +200,21 @@ fixtures = [
     {
         "dt": "Custom Field",
         "filters": [
-            ["dt", "in", ["Employee", "User"]]  # Added User
+            ["dt", "in", ["Employee", "User"]]
         ]
     },
     {
         "dt": "Property Setter",
         "filters": [
-            ["doc_type", "in", ["Employee", "User"]] # Added User
+            ["doc_type", "in", ["Employee", "User"]]
         ]
     }
 ]
+
+extend_bootinfo = [
+    "artem_hrms.overrides.boot_session"
+]
+
 # Overriding Methods
 # ------------------------------
 #
