@@ -192,7 +192,12 @@ fixtures = [
             ["name", "in", ["get_data_k","get-attendance-dashboard-data","checkin_restrict"]]
         ]
     },
-
+    {
+        "dt": "Server Script",
+        "filters": [
+            ["name", "=", "permission query ao"]
+        ]
+    }
 ]
 # Overriding Methods
 # ------------------------------
