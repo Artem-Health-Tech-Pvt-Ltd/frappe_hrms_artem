@@ -181,20 +181,55 @@ override_doctype_class = {
 
 
 fixtures = [
+    # {
+    #     "dt": "Workspace",
+    #     "filters": [
+    #         ["name", "=", "BMC HRMS"]
+    #     ]
+    # },
+    # {
+    #     "dt": "Desktop Icon",
+    #     "filters": [
+    #         ["label", "=", "BMC HRMS"]
+    #     ]
+    # },
     {
         "dt": "Custom HTML Block",
         "filters": [
-            ["name", "in", ["Attendance-Table"]]
+            ["name", "in", ["Attendance-Table"
+                            # "Attendance-Dashboard"
+                            ]]
         ]
     },
     {
         "dt": "Server Script",
         "filters": [
             ["name", "in", [
+                # "permission query ao",
+                # "checkin_restrict",
+                # "get-attendance-dashboard-data",
                 "get_data_k"
             ]]
         ]
     }
+    # {
+    #     "dt": "Custom Field",
+    #     "filters": [
+    #         ["dt", "in", ["Employee", "User"]]
+    #     ]
+    # },
+    # {
+    #     "dt": "Property Setter",
+    #     "filters": [
+    #         ["doc_type", "in", ["Employee", "User"]],
+    #         ["name", "in", [
+    #             "permission query ao",
+    #             "checkin_restrict",
+    #             "get-attendance-dashboard-data",
+    #             "get_data_k"
+    #         ]]
+    #     ]
+    # }
 ]
 
 extend_bootinfo = [
