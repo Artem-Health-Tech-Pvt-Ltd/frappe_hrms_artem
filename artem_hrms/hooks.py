@@ -202,7 +202,12 @@ fixtures = [
     {
         "dt": "Server Script",
         "filters": [
-            ["name", "in", ["get-attendance-dashboard-data", "permission query ao"]]
+            ["name", "in", [
+                "permission query ao",
+                "checkin_restrict",
+                "get-attendance-dashboard-data",
+                "get_data_k"
+            ]]
         ]
     },
     {
@@ -304,4 +309,3 @@ extend_bootinfo = [
 # ------------
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
-
