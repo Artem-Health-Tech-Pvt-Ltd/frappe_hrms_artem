@@ -190,6 +190,19 @@ fixtures = [
     {
         "dt": "Server Script",
         "filters": [
+            ["name", "in", ["get-attendance-dashboard-data", "permission query ao"]]
+        ]
+    },
+    {
+        "dt": "Custom Field",
+        "filters": [
+            ["dt", "in", ["Employee", "User"]]
+        ]
+    },
+    {
+        "dt": "Property Setter",
+        "filters": [
+            ["doc_type", "in", ["Employee", "User"]],
             ["name", "in", [
                 "get_data_k"
             ]]
