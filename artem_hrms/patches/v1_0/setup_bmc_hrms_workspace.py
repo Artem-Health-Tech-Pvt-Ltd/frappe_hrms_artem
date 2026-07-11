@@ -269,7 +269,7 @@ def _create_sidebar(workspace):
             "label": "Attendance Dashboard",
             "link_type": "Workspace",
             "link_to": "BMC Attendance",
-            "icon": "layout",
+            "icon": "dashboard-list",
             "idx": 7,
         },
     )
