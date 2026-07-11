@@ -385,6 +385,7 @@ def execute():
     _wipe_existing()
     _wipe_attendance_workspace()
     workspace = _create_workspace()
+    _create_attendance_workspace()
     # BMC Attendance is loaded from fixtures/workspace.json so it registers
     # as a standard workspace (same path as BMC HRMS) and exposes the edit
     # three-dot menu. We still wipe it here so re-runs start from a clean
