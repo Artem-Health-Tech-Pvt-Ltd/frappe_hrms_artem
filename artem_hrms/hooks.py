@@ -219,7 +219,7 @@ fixtures = [
     {
         "dt": "Property Setter",
         "filters": [
-            ["doc_type", "in", ["Employee", "User"]]
+            ["doc_type", "in", ["Employee", "User"]],
             ["name", "in", [
                 "permission query ao",
                 "checkin_restrict",
