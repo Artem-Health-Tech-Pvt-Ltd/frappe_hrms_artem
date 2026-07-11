@@ -18,7 +18,7 @@
 		}
 
 		const path = window.location.pathname;
-		if (path === "/desk" || path === "/desk/" || path === "/") {
+		if (path === "/desk" || path === "/desk/" || path === "/" || path === "/desk/people") {
 			try {
 				sessionStorage.setItem(FLAG, "1");
 			} catch (e) {
