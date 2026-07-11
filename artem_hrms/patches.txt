@@ -5,3 +5,5 @@
 [post_model_sync]
 # Patches added in this section will be executed after doctypes are migrated
 artem_hrms.patches.v1_0.setup_bmc_hrms_workspace
+artem_hrms.patches.v1_0.setup_bmc_hrms_workspace_v2
+
