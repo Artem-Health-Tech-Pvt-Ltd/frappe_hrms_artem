@@ -122,7 +122,6 @@ def _create_workspace():
     # be displayed correctly" in Frappe 16. Sidebar items handle navigation,
     # so the workspace page body is intentionally left empty for the user
     # to populate via the UI.
-    _ensure_shortcuts(workspace)
     workspace.insert(ignore_permissions=True)
     # Belt-and-braces: also zero content via SQL so an old value cannot survive
     # in the in-memory doc due to any framework-triggered recompute.
@@ -167,9 +166,6 @@ def _build_content():
     ]
     # This must be a stringified JSON
     return json.dumps(blocks)
-
-# Inside _create_workspace:
-workspace.content = _build_content()
 
 # def _build_content():
 #     cards = [
