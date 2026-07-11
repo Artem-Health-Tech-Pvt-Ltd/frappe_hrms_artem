@@ -193,25 +193,25 @@ fixtures = [
     #         ["label", "=", "BMC HRMS"]
     #     ]
     # },
-    {
-        "dt": "Custom HTML Block",
-        "filters": [
-            ["name", "in", ["Attendance-Table"
-                            # "Attendance-Dashboard"
-                            ]]
-        ]
-    },
-    {
-        "dt": "Server Script",
-        "filters": [
-            ["name", "in", [
-                # "permission query ao",
-                # "checkin_restrict",
-                # "get-attendance-dashboard-data",
-                "get_data_k"
-            ]]
-        ]
-    }
+    # {
+    #     "dt": "Custom HTML Block",
+    #     "filters": [
+    #         ["name", "in", ["Attendance-Table"
+    #                         # "Attendance-Dashboard"
+    #                         ]]
+    #     ]
+    # },
+    # {
+    #     "dt": "Server Script",
+    #     "filters": [
+    #         ["name", "in", [
+    #             # "permission query ao",
+    #             # "checkin_restrict",
+    #             # "get-attendance-dashboard-data",
+    #             "get_data_k"
+    #         ]]
+    #     ]
+    # }
     # {
     #     "dt": "Custom Field",
     #     "filters": [
@@ -230,6 +230,12 @@ fixtures = [
     #         ]]
     #     ]
     # }
+    {
+        "dt": "Workspace",
+        "filters": [
+            ["name", "=", "BMC Attendance"]
+        ]
+    }
 ]
 
 extend_bootinfo = [
