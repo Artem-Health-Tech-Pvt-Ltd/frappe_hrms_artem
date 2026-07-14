@@ -1,5 +1,5 @@
 [
- {
+  {
   "app": "artem_hrms",
   "charts": [],
   "content": "[{\"id\":\"NVyKg47oAO\",\"type\":\"custom_block\",\"data\":{\"custom_block_name\":\"Attendance-Dashboard\",\"col\":12}},{\"id\":\"9Wfn1xctR0\",\"type\":\"custom_block\",\"data\":{\"custom_block_name\":\"Attendance-Table\",\"col\":12}}]",
