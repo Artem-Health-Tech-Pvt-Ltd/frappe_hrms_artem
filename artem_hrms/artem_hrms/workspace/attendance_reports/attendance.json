@@ -12,7 +12,7 @@
  "idx": 0,
  "indicator_color": "green",
  "is_hidden": 0,
- "label": "Attendance",
+ "label": "Attendance Reports",
  "link_type": "DocType",
  "links": [
   {
@@ -136,7 +136,7 @@
   }
  ],
  "module": "Artem Hrms",
- "name": "Attendance",
+ "name": "Attendance Reports",
  "number_cards": [],
  "parent_page": "BMC HRMS",
  "public": 1,
@@ -173,6 +173,6 @@
    "idx": 1
   }
  ],
- "title": "Attendance",
+ "title": "Attendance Reports",
  "type": "Workspace"
 }

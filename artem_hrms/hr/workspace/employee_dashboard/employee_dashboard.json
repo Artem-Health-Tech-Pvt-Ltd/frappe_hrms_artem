@@ -99,6 +99,38 @@
    "onboard": 0,
    "type": "Link",
    "idx": 8
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Reports",
+   "link_count": 2,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break",
+   "idx": 9
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Attendance Source Report",
+   "link_count": 0,
+   "link_to": "Attendance Source Report",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link",
+   "idx": 10
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Effective Attendance Report",
+   "link_count": 0,
+   "link_to": "Effective Attendance Report",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link",
+   "idx": 11
   }
  ],
  "modified": "2026-07-10 20:14:22.115441",
