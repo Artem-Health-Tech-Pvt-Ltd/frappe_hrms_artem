@@ -235,6 +235,31 @@ fixtures = [
         "filters": [
             ["name", "=", "BMC Attendance"]
         ]
+    },
+    {
+        "dt": "Workspace Sidebar",
+        "filters": [
+            ["name", "=", "BMC HR"]
+        ]
+    },
+    {
+        "dt": "Desktop Icon",
+        "filters": [
+            ["label", "=", "BMC HR"],
+            ["standard", "=", 1]
+        ]
+    },
+    {
+        "dt": "Workspace",
+        "filters": [
+            ["name", "=", "Employee Dashboard"]
+        ]
+    },
+    {
+        "doctype": "Workspace",
+        "filters": [
+            ["module", "=", "BMC HR"]  # Replace with the exact Module Def name of your app
+        ]
     }
 ]
 
