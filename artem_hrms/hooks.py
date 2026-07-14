@@ -2,7 +2,7 @@ app_name = "artem_hrms"
 app_title = "BMC HRMS"
 app_publisher = "Artem"
 app_description = "Artem Hrms"
-app_email = "uday.patel@artemhealthtech.com"
+app_email = "krishna.padhiyar@artemhealthtech.com"
 app_license = "mit"
 
 # Apps
@@ -181,55 +181,14 @@ override_doctype_class = {
 
 
 fixtures = [
-    # {
-    #     "dt": "Workspace",
-    #     "filters": [
-    #         ["name", "=", "BMC HRMS"]
-    #     ]
-    # },
-    # {
-    #     "dt": "Desktop Icon",
-    #     "filters": [
-    #         ["label", "=", "BMC HRMS"]
-    #     ]
-    # },
-    {
-        "dt": "Custom HTML Block",
-        "filters": [
-            ["name", "in", ["Attendance-Table"
-                            # "Attendance-Dashboard"
-                            ]]
-        ]
-    },
     {
         "dt": "Server Script",
         "filters": [
             ["name", "in", [
-                # "permission query ao",
-                # "checkin_restrict",
-                # "get-attendance-dashboard-data",
-                "get_data_k"
+                "checkin_restrict"
             ]]
         ]
     }
-    # {
-    #     "dt": "Custom Field",
-    #     "filters": [
-    #         ["dt", "in", ["Employee", "User"]]
-    #     ]
-    # },
-    # {
-    #     "dt": "Property Setter",
-    #     "filters": [
-    #         ["doc_type", "in", ["Employee", "User"]],
-    #         ["name", "in", [
-    #             "permission query ao",
-    #             "checkin_restrict",
-    #             "get-attendance-dashboard-data",
-    #             "get_data_k"
-    #         ]]
-    #     ]
-    # }
 ]
 
 extend_bootinfo = [
