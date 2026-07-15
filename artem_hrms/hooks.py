@@ -260,6 +260,12 @@ fixtures = [
         "filters": [
             ["module", "=", "BMC HR"]  # Replace with the exact Module Def name of your app
         ]
+    },
+    {
+        "dt": "Server Script",
+        "filters": [
+            ["name", "=", "checkin_restrict"]
+        ]
     }
 ]
 
