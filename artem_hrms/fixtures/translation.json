@@ -1,0 +1,28 @@
+[
+ {
+  "context": null,
+  "contributed": 0,
+  "contribution_docname": null,
+  "contribution_status": "",
+  "docstatus": 0,
+  "doctype": "Translation",
+  "language": "en",
+  "modified": "2026-07-14 19:11:59.811799",
+  "name": "nkel5o92si",
+  "source_text": "You must be within {0} meters of your shift location to check in.",
+  "translated_text": "You are more than {0} meters from your work location. Please move closer to check in. If you are already at your workplace and still unable to check in, contact your HR Administrator."
+ },
+ {
+  "context": null,
+  "contributed": 0,
+  "contribution_docname": null,
+  "contribution_status": "",
+  "docstatus": 0,
+  "doctype": "Translation",
+  "language": "en",
+  "modified": "2026-07-14 19:13:11.099468",
+  "name": "oan0e7o59t",
+  "source_text": "Transactions cannot be created for an Inactive Employee {0}.",
+  "translated_text": "This action is unavailable for inactive employees. Please reach out to the HR Administrator to activate the employee status."
+ }
+]
