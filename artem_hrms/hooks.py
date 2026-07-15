@@ -230,35 +230,48 @@ fixtures = [
     #         ]]
     #     ]
     # }
-    {
-        "dt": "Workspace",
+    # {
+    #     "dt": "Workspace",
+    #     "filters": [
+    #         ["name", "=", "BMC Attendance"]
+    #     ]
+    # },
+    # {
+    #     "dt": "Workspace Sidebar",
+    #     "filters": [
+    #         ["name", "=", "BMC HR"]
+    #     ]
+    # },
+    # {
+    #     "dt": "Desktop Icon",
+    #     "filters": [
+    #         ["label", "=", "BMC HR"],
+    #         ["standard", "=", 1]
+    #     ]
+    # },
+    # {
+    #     "dt": "Workspace",
+    #     "filters": [
+    #         ["name", "=", "Employee Dashboard"]
+    #     ]
+    # },
+    # {
+    #     "doctype": "Workspace",
+    #     "filters": [
+    #         ["module", "=", "BMC HR"]  # Replace with the exact Module Def name of your app
+    #     ]
+    # }
+	{
+        "dt": "Translation",
         "filters": [
-            ["name", "=", "BMC Attendance"]
-        ]
-    },
-    {
-        "dt": "Workspace Sidebar",
-        "filters": [
-            ["name", "=", "BMC HR"]
-        ]
-    },
-    {
-        "dt": "Desktop Icon",
-        "filters": [
-            ["label", "=", "BMC HR"],
-            ["standard", "=", 1]
-        ]
-    },
-    {
-        "dt": "Workspace",
-        "filters": [
-            ["name", "=", "Employee Dashboard"]
-        ]
-    },
-    {
-        "doctype": "Workspace",
-        "filters": [
-            ["module", "=", "BMC HR"]  # Replace with the exact Module Def name of your app
+            [
+                "source_text",
+                "in",
+                [
+                    "Transactions cannot be created for an Inactive Employee {0}.",
+                    "You must be within {0} meters of your shift location to check in."
+                ]
+            ]
         ]
     },
     {
