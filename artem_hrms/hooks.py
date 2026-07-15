@@ -193,25 +193,25 @@ fixtures = [
     #         ["label", "=", "BMC HRMS"]
     #     ]
     # },
-    # {
-    #     "dt": "Custom HTML Block",
-    #     "filters": [
-    #         ["name", "in", ["Attendance-Table"
-    #                         # "Attendance-Dashboard"
-    #                         ]]
-    #     ]
-    # },
-    # {
-    #     "dt": "Server Script",
-    #     "filters": [
-    #         ["name", "in", [
-    #             # "permission query ao",
-    #             # "checkin_restrict",
-    #             # "get-attendance-dashboard-data",
-    #             "get_data_k"
-    #         ]]
-    #     ]
-    # }
+    {
+        "dt": "Custom HTML Block",
+        "filters": [
+            ["name", "in", ["Attendance-Table"
+                            # "Attendance-Dashboard"
+                            ]]
+        ]
+    },
+    {
+        "dt": "Server Script",
+        "filters": [
+            ["name", "in", [
+                # "permission query ao",
+                # "checkin_restrict",
+                # "get-attendance-dashboard-data",
+                "get_data_k"
+            ]]
+        ]
+    }
     # {
     #     "dt": "Custom Field",
     #     "filters": [
@@ -261,19 +261,19 @@ fixtures = [
     #         ["module", "=", "BMC HR"]  # Replace with the exact Module Def name of your app
     #     ]
     # }
-	{
-        "dt": "Translation",
-        "filters": [
-            [
-                "source_text",
-                "in",
-                [
-                    "Transactions cannot be created for an Inactive Employee {0}.",
-                    "You must be within {0} meters of your shift location to check in."
-                ]
-            ]
-        ]
-    }
+	# {
+    #     "dt": "Translation",
+    #     "filters": [
+    #         [
+    #             "source_text",
+    #             "in",
+    #             [
+    #                 "Transactions cannot be created for an Inactive Employee {0}.",
+    #                 "You must be within {0} meters of your shift location to check in."
+    #             ]
+    #         ]
+    #     ]
+    # }
 ]
 
 extend_bootinfo = [
