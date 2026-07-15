@@ -1,7 +1,7 @@
 [
  {
   "allow_guest": 0,
-  "api_method": "get_data_k",
+  "api_method": null,
   "cron_format": null,
   "disabled": 0,
   "docstatus": 0,
@@ -11,7 +11,7 @@
   "event_frequency": "All",
   "modified": "2026-07-15 15:13:22.259098",
   "module": "Artem Hrms",
-  "name": "get_data_k",
+  "name": "checkin_restrict",
   "rate_limit_count": 5,
   "rate_limit_seconds": 86400,
   "reference_doctype": null,
