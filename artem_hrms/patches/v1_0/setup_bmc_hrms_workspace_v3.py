@@ -64,10 +64,10 @@ HRMS_CARDS = [
     ("Leave", "calendar-minus", [
         ("Leave Application", "DocType", "Leave Application"),
     ]),
-    ("Custom Reports", "list", [
-        ("palalvi", "DocType", "Employee"),
-        ("Shift Summary", "DocType", "Shift Assignment"),
-    ]),
+    # ("Custom Reports", "list", [
+    #     ("palalvi", "DocType", "Employee"),
+    #     ("Shift Summary", "DocType", "Shift Assignment"),
+    # ]),
 ]
 
 
@@ -129,13 +129,13 @@ def _create_bmc_hrms_workspace():
                 "col": 12,
             },
         },
-        {
-            "id": "bmc-hrms-p",
-            "type": "paragraph",
-            "data": {
-                "text": "Quick access to attendance, shifts, leave, and reports."
-            },
-        },
+        # {
+        #     "id": "bmc-hrms-p",
+        #     "type": "paragraph",
+        #     "data": {
+        #         "text": "Quick access to attendance, shifts, leave, and reports."
+        #     },
+        # },
     ]
     for idx, (card_label, _, _) in enumerate(HRMS_CARDS):
         content_blocks.append({
@@ -247,6 +247,7 @@ def _create_sidebar(workspace):
          "link_type": "DocType", "link_to": "Expense Claim"},
         {"type": "Link", "label": "Salary Payout", "icon": "money-coins-1", "idx": 21,
          "link_type": "DocType", "link_to": "Salary Slip"},
+        
         {"type": "Section Break", "label": "Lifecycle", "icon": "milestone", "idx": 25, "collapsible": 1},
         {"type": "Link", "label": "Employee Lifecycle", "icon": "milestone", "idx": 26,
          "link_type": "Workspace", "link_to": LIFECYCLE_WORKSPACE_NAME},
@@ -266,8 +267,19 @@ def _create_sidebar(workspace):
          "link_type": "Workspace", "link_to": "My Team"},
 
         {"type": "Section Break", "label": "Reports", "icon": "list", "idx": 99, "collapsible": 1},
+        # Reports section - children nested under the Reports header (child=1)
         {"type": "Link", "label": "Employee Leave Balance", "icon": "table", "idx": 100,
+         "child": 1,
          "link_type": "Report", "link_to": "Employee Leave Balance"},
+        {"type": "Link", "label": "Attendance Report", "icon": "file-text", "idx": 101,
+         "child": 1,
+         "link_type": "Report", "link_to": "Attendance Report"},
+        {"type": "Link", "label": "Effective Attendance Report", "icon": "file-check", "idx": 102,
+         "child": 1,
+         "link_type": "Report", "link_to": "Effective Attendance Report"},
+        {"type": "Link", "label": "Attendance Source Report", "icon": "list", "idx": 103,
+         "child": 1,
+         "link_type": "Report", "link_to": "Attendance Source Report"},
     ]
 
     for item in items:
