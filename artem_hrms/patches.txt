@@ -6,4 +6,6 @@
 # Patches added in this section will be executed after doctypes are migrated
 artem_hrms.patches.v1_0.setup_bmc_hrms_workspace
 artem_hrms.patches.v1_0.setup_bmc_hrms_workspace_v2
+artem_hrms.patches.v1_0.fix_bmc_hr_sidebar_icons
+artem_hrms.patches.v1_0.sync_bmc_hr_sidebar_from_json
 

@@ -194,24 +194,11 @@ fixtures = [
     #     ]
     # },
     {
-        "dt": "Custom HTML Block",
-        "filters": [
-            ["name", "in", ["Attendance-Table"
-                            # "Attendance-Dashboard"
-                            ]]
-        ]
-    },
-    {
         "dt": "Server Script",
         "filters": [
-            ["name", "in", [
-                # "permission query ao",
-                # "checkin_restrict",
-                # "get-attendance-dashboard-data",
-                "get_data_k"
-            ]]
+            ["name", "=", "checkin_restrict"]
         ]
-    }
+    },
     # {
     #     "dt": "Custom Field",
     #     "filters": [
@@ -230,18 +217,24 @@ fixtures = [
     #         ]]
     #     ]
     # }
-    # {
-    #     "dt": "Workspace",
-    #     "filters": [
-    #         ["name", "=", "BMC Attendance"]
-    #     ]
-    # },
-    # {
-    #     "dt": "Workspace Sidebar",
-    #     "filters": [
-    #         ["name", "=", "BMC HR"]
-    #     ]
-    # },
+    {
+        "dt": "Workspace",
+        "filters": [
+            ["name", "=", "BMC Attendance"]
+        ]
+    },
+    {
+        "dt": "Workspace",
+        "filters": [
+            ["name", "=", "Employee Dashboard"]
+        ]
+    },
+    {
+        "dt": "Workspace Sidebar",
+        "filters": [
+            ["name", "=", "BMC HR"]
+        ]
+    },
     # {
     #     "dt": "Desktop Icon",
     #     "filters": [
