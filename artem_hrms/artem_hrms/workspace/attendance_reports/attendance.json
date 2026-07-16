@@ -1,0 +1,178 @@
+{
+ "app": "artem_hrms",
+ "charts": [],
+ "content": "[{\"id\":\"att-h\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Attendance</b></span>\",\"col\":12}},{\"id\":\"att-sc-1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Employee Checkin\",\"col\":4}},{\"id\":\"att-sc-2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Attendance\",\"col\":4}}]",
+ "creation": "2026-07-14 00:00:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "calendar",
+ "idx": 0,
+ "indicator_color": "green",
+ "is_hidden": 0,
+ "label": "Attendance Reports",
+ "link_type": "DocType",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Attendance",
+   "link_count": 0,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break",
+   "idx": 1
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Attendance Request",
+   "link_count": 0,
+   "link_to": "Attendance Request",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link",
+   "idx": 2
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Employee Checkin",
+   "link_count": 0,
+   "link_to": "Employee Checkin",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link",
+   "idx": 3
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Employee Attendance Tool",
+   "link_count": 0,
+   "link_to": "Employee Attendance Tool",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link",
+   "idx": 4
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Upload Attendance",
+   "link_count": 0,
+   "link_to": "Upload Attendance",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link",
+   "idx": 5
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Shift Assignment Tool",
+   "link_count": 0,
+   "link_to": "Shift Assignment Tool",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link",
+   "idx": 6
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Reports",
+   "link_count": 0,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break",
+   "idx": 7
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Monthly Attendance Sheet",
+   "link_count": 0,
+   "link_to": "Monthly Attendance Sheet",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link",
+   "idx": 8
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Shift Attendance",
+   "link_count": 0,
+   "link_to": "Shift Attendance",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link",
+   "idx": 9
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Employee Hours Utilization Based On Timesheet",
+   "link_count": 0,
+   "link_to": "Employee Hours Utilization Based On Timesheet",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link",
+   "idx": 10
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Employees working on a holiday",
+   "link_count": 0,
+   "link_to": "Employees working on a holiday",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link",
+   "idx": 11
+  }
+ ],
+ "module": "Artem Hrms",
+ "name": "Attendance Reports",
+ "number_cards": [],
+ "parent_page": "BMC HRMS",
+ "public": 1,
+ "quick_lists": [
+  {
+   "document_type": "Employee Checkin",
+   "label": "Employee Checkin",
+   "quick_list_filter": "{}",
+   "idx": 0
+  }
+ ],
+ "restrict_to_domain": null,
+ "roles": [],
+ "sequence_id": 51.0,
+ "shortcuts": [
+  {
+   "type": "DocType",
+   "label": "Employee Checkin",
+   "link_to": "Employee Checkin",
+   "icon": "clipboard",
+   "stats_filter": "{}",
+   "color": "Gray",
+   "doc_view": "List",
+   "idx": 0
+  },
+  {
+   "type": "DocType",
+   "label": "Attendance",
+   "link_to": "Attendance",
+   "icon": "calendar",
+   "stats_filter": "{}",
+   "color": "Gray",
+   "doc_view": "List",
+   "idx": 1
+  }
+ ],
+ "title": "Attendance Reports",
+ "type": "Workspace"
+}

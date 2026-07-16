@@ -1,0 +1,245 @@
+{% extends "templates/web.html" %}
+{% block navbar %}{% endblock %}
+{% block sidebar %}{% endblock %}
+
+{% block head_include %}
+{{ include_style('login.bundle.css') }}
+<link rel="stylesheet" href="/assets/artem_hrms/css/login.css">
+{% endblock %}
+
+{% block page_content %}
+<div class="bmc-login-page">
+	<noscript>
+		<div class="text-center my-5">
+			<h4>{{ _("Javascript is disabled on your browser") }}</h4>
+			<p class="text-muted">
+				{{ _("You need to enable JavaScript for your app to work.") }}
+			</p>
+		</div>
+	</noscript>
+
+	<div class="bmc-login-wrap">
+		<div class="bmc-login-logo">
+			<img src="/assets/artem_hrms/images/bmc_hr_logo.svg" alt="BMC" onerror="this.src='/assets/artem_hrms/images/bmc_hr_logo.png'">
+			<h4>{{ _("Login to BMC") }}</h4>
+		</div>
+
+		<section class="for-login">
+			<div class="bmc-login-card login-content page-card">
+				<div class="bmc-login-error" id="login-error" role="alert" aria-live="polite" style="display:none;"></div>
+				<form class="form-signin form-login" role="form">
+					{% if not disable_user_pass_login or (ldap_settings and ldap_settings.enabled) %}
+					<div class="bmc-card-body page-card-body">
+						<div class="bmc-form-group">
+							<div class="bmc-field email-field">
+								<svg class="bmc-field-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+									<path d="M2 4.5C2 3.67157 2.67157 3 3.5 3H12.5C13.3284 3 14 3.67157 14 4.5V11.5C14 12.3284 13.3284 13 12.5 13H3.5C2.67157 13 2 12.3284 2 11.5V4.5Z" stroke="currentColor" stroke-width="1.2"/>
+									<path d="M2.5 4L8 8.5L13.5 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+								</svg>
+								<input type="text" id="login_email" class="bmc-form-control"
+									placeholder="{% if login_name_placeholder %}{{ login_name_placeholder }}{% else %}{{ _('jane@example.com') }}{% endif %}"
+									required autofocus autocomplete="username">
+							</div>
+						</div>
+
+						<div class="bmc-form-group">
+							<div class="bmc-field password-field">
+								<svg class="bmc-field-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+									<rect x="3" y="7" width="10" height="6" rx="1" stroke="currentColor" stroke-width="1.2"/>
+									<path d="M5 7V5C5 3.34315 6.34315 2 8 2C9.65685 2 11 3.34315 11 5V7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+								</svg>
+								<input type="password" id="login_password" class="bmc-form-control" placeholder="•••••"
+									autocomplete="current-password" required>
+								<span toggle="#login_password" class="bmc-toggle-password toggle-password">{{ _('Show') }}</span>
+							</div>
+						</div>
+
+						{% if not disable_user_pass_login %}
+						<p class="bmc-forgot">
+							<a href="#forgot">{{ _("Forgot Password?") }}</a>
+						</p>
+						{% endif %}
+					</div>
+					{% endif %}
+
+					<div class="bmc-card-actions">
+						{% if not disable_user_pass_login %}
+						<button class="bmc-btn bmc-btn-primary bmc-btn-login btn btn-sm btn-primary btn-block" type="submit">
+							{{ _("Login") }}
+						</button>
+						{% endif %}
+
+						{% if not disable_user_pass_login or (ldap_settings and ldap_settings.enabled) %}
+						<p class="bmc-divider">{{ _("or") }}</p>
+						{% endif %}
+
+						{% if login_with_email_link %}
+						<button type="button" class="bmc-btn bmc-btn-secondary bmc-btn-login-with-email-link">
+							{{ _("Login with Email Link") }}
+						</button>
+						{% elif ldap_settings and ldap_settings.enabled %}
+						<button class="bmc-btn bmc-btn-secondary bmc-btn-ldap-login btn btn-sm btn-default btn-block" type="submit">
+							{{ _("Login with LDAP") }}
+						</button>
+						{% endif %}
+					</div>
+				</form>
+			</div>
+		</section>
+
+		<section class="for-forgot" style="display:none;">
+			<div class="bmc-login-card login-content page-card">
+				<div class="bmc-login-error" id="forgot-error" role="alert" aria-live="polite" style="display:none;"></div>
+				<form class="form-signin form-forgot hide" role="form">
+					<div class="bmc-card-body page-card-body">
+						<div class="bmc-field email-field">
+							<svg class="bmc-field-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+								<path d="M2 4.5C2 3.67157 2.67157 3 3.5 3H12.5C13.3284 3 14 3.67157 14 4.5V11.5C14 12.3284 13.3284 13 12.5 13H3.5C2.67157 13 2 12.3284 2 11.5V4.5Z" stroke="currentColor" stroke-width="1.2"/>
+								<path d="M2.5 4L8 8.5L13.5 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+							</svg>
+							<input type="email" id="forgot_email" class="bmc-form-control"
+								placeholder="{{ _('Email Address') }}" required autofocus autocomplete="username">
+						</div>
+					</div>
+					<div class="bmc-card-actions">
+						<button class="bmc-btn bmc-btn-primary bmc-btn-forgot btn btn-sm btn-primary btn-block" type="submit">
+							{{ _("Reset Password") }}
+						</button>
+						<p class="bmc-back text-center">
+							<a href="#login">{{ _("Back to Login") }}</a>
+						</p>
+					</div>
+				</form>
+			</div>
+		</section>
+
+		<section class="for-login-with-email-link" style="display:none;">
+			<div class="bmc-login-card login-content page-card">
+				<div class="bmc-login-error" id="email-link-error" role="alert" aria-live="polite" style="display:none;"></div>
+				<form class="form-signin form-login-with-email-link hide" role="form">
+					<div class="bmc-card-body page-card-body">
+						<div class="bmc-field email-field">
+							<svg class="bmc-field-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+								<path d="M2 4.5C2 3.67157 2.67157 3 3.5 3H12.5C13.3284 3 14 3.67157 14 4.5V11.5C14 12.3284 13.3284 13 12.5 13H3.5C2.67157 13 2 12.3284 2 11.5V4.5Z" stroke="currentColor" stroke-width="1.2"/>
+								<path d="M2.5 4L8 8.5L13.5 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+							</svg>
+							<input type="email" id="login_with_email_link_email" class="bmc-form-control"
+								placeholder="{{ _('Email Address') }}" required autofocus autocomplete="username">
+						</div>
+					</div>
+					<div class="bmc-card-actions">
+						<button class="bmc-btn bmc-btn-primary bmc-btn-login-with-email-link btn btn-sm btn-primary btn-block" type="submit">
+							{{ _("Send login link") }}
+						</button>
+						<p class="bmc-back text-center">
+							<a href="#login">{{ _("Back to Login") }}</a>
+						</p>
+					</div>
+				</form>
+			</div>
+		</section>
+	</div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>{% include "templates/includes/login/login.js" %}</script>
+<script>
+	// ── Custom error banner ──────────────────────────────────────────────
+	// The standard login.js writes status / error messages to the form
+	// button. We mirror those into a clearly visible banner above the form
+	// by wrapping `login.set_status` and `login.set_invalid` after the
+	// standard JS has been parsed. We also intercept every `frappe.call`
+	// (used by `login.call`) so error responses with `_server_messages`
+	// surface a banner even if the standard helpers don't fire.
+	(function () {
+		function visibleSection() {
+			return $('.bmc-login-wrap > section:visible').first();
+		}
+
+		function bannerFor(scope) {
+			var $scope = scope && scope.length ? scope : visibleSection();
+			if (!$scope || !$scope.length) {
+				return $('.bmc-login-wrap .bmc-login-error').first();
+			}
+			return $scope.find('.bmc-login-error').first();
+		}
+
+		function showBanner(scope, message, color) {
+			var $box = bannerFor(scope);
+			if (!$box || !$box.length) return;
+			if (message) {
+				$box.text(message)
+					.removeClass('bmc-error-red bmc-error-blue bmc-error-green')
+					.addClass('bmc-error-' + (color || 'red'))
+					.addClass('show')
+					.css('display', 'block');
+			} else {
+				$box.removeClass('show bmc-error-red bmc-error-blue bmc-error-green')
+					.text('')
+					.css('display', 'none');
+			}
+		}
+
+		function tryPatch() {
+			if (!window.login || typeof window.login.set_status !== 'function') {
+				return setTimeout(tryPatch, 10);
+			}
+
+			var origSetStatus = window.login.set_status;
+			var origSetInvalid = window.login.set_invalid;
+			var origCall = window.login.call;
+
+			window.login.set_status = function (message, color) {
+				if (typeof origSetStatus === 'function') origSetStatus(message, color);
+				showBanner(visibleSection(), message, color);
+			};
+
+			window.login.set_invalid = function (message) {
+				if (typeof origSetInvalid === 'function') origSetInvalid(message);
+				showBanner($('.for-login:visible'), message, 'red');
+			};
+
+			window.login.call = function (args, callback, url) {
+				// Clear previous error before re-submitting
+				showBanner(null, null);
+				return origCall.apply(this, arguments);
+			};
+
+			// Belt-and-braces: hook frappe.xhr / frappe.call so even if the
+			// standard login.js bypasses login.set_status (e.g. an unhandled
+			// 500) the server message still surfaces in the banner.
+			if (window.frappe && frappe.xhr && !frappe._bmc_xhr_patched) {
+				var origWithRequest = frappe.xhr.with_request;
+				frappe.xhr.with_request = function (opts) {
+					if (opts && opts.error) {
+						var origErr = opts.error;
+						opts.error = function (xhr) {
+							try {
+								var data = xhr && xhr.responseJSON;
+								if (data && data._server_messages) {
+									var msgs = JSON.parse(data._server_messages || '[]');
+									var text = (msgs || []).map(function (m) {
+										try { return JSON.parse(m).message; }
+										catch (e) { return m; }
+									}).join('\n');
+									if (text) showBanner(visibleSection(), text, 'red');
+								}
+							} catch (e) {}
+							return origErr.apply(this, arguments);
+						};
+					}
+					return origWithRequest.apply(this, arguments);
+				};
+				frappe._bmc_xhr_patched = true;
+			}
+		}
+
+		if (document.readyState === 'loading') {
+			document.addEventListener('DOMContentLoaded', tryPatch);
+		} else {
+			tryPatch();
+		}
+	})();
+</script>
+{% endblock %}
