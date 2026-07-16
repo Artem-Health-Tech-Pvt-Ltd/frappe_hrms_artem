@@ -1,0 +1,124 @@
+{
+ "app": "artem_hrms",
+ "charts": [],
+ "content": "[{\"id\":\"myteam-h\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>My Team</b></span>\",\"col\":12}},{\"id\":\"myteam-emp\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Employee\",\"col\":4}}]",
+ "creation": "2026-07-14 00:00:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "users",
+ "idx": 0,
+ "indicator_color": "green",
+ "is_hidden": 0,
+ "label": "My Team",
+ "link_type": "DocType",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Reports",
+   "link_count": 0,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break",
+   "idx": 1
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Bulk Attendance",
+   "link_count": 0,
+   "link_to": "Bulk Attendance",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link",
+   "idx": 2
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Monthly Attendance Sheet",
+   "link_count": 0,
+   "link_to": "Monthly Attendance Sheet",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link",
+   "idx": 3
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Shift Attendance",
+   "link_count": 0,
+   "link_to": "Shift Attendance",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link",
+   "idx": 4
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Custom Reports",
+   "link_count": 0,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break",
+   "idx": 5
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "palalvi",
+   "link_count": 0,
+   "link_to": "palalvi",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link",
+   "idx": 6
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Shift Summary",
+   "link_count": 0,
+   "link_to": "Shift Summary",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link",
+   "idx": 7
+  }
+ ],
+ "module": "Artem Hrms",
+ "name": "My Team",
+ "number_cards": [],
+ "parent_page": "BMC HRMS",
+ "public": 1,
+ "quick_lists": [
+  {
+   "document_type": "Employee",
+   "label": "Employee",
+   "quick_list_filter": "{}",
+   "idx": 0
+  }
+ ],
+ "restrict_to_domain": null,
+ "roles": [],
+ "sequence_id": 50.0,
+ "shortcuts": [
+  {
+   "type": "DocType",
+   "label": "Employee",
+   "link_to": "Employee",
+   "icon": "users",
+   "stats_filter": "{}",
+   "color": "Gray",
+   "doc_view": "List",
+   "idx": 0
+  }
+ ],
+ "title": "My Team",
+ "type": "Workspace"
+}
