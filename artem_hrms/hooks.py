@@ -181,20 +181,17 @@ override_doctype_class = {
 
 fixtures = [
     {
-        "dt": "Server Script",
+        "dt": "Custom HTML Block",
         "filters": [
             ["name", "in", ["Attendance-Table"]]
         ]
     },
     {
-        "dt": "Custom HTML Block",
+        "dt": "Server Script",
         "filters": [
-            ["name", "in", [
-                "get_data_k"
-            ]]
+            ["name", "in", ["get_data_k"]]
         ]
     }
-  
 ]
 
 extend_bootinfo = []
