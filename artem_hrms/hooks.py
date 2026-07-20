@@ -1,8 +1,8 @@
 app_name = "artem_hrms"
-app_title = "Artem Hrms"
+app_title = "BMC HRMS"
 app_publisher = "Artem"
 app_description = "Artem Hrms"
-app_email = "jay.patel@artemhealthtech.com"
+app_email = "uday.patel@artemhealthtech.com"
 app_license = "mit"
 
 # Apps
@@ -11,22 +11,23 @@ app_license = "mit"
 # required_apps = []
 
 # Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "artem_hrms",
-# 		"logo": "/assets/artem_hrms/logo.png",
-# 		"title": "Artem Hrms",
-# 		"route": "/artem_hrms",
-# 		"has_permission": "artem_hrms.api.permission.has_app_permission"
-# 	}
-# ]
+add_to_apps_screen = [
+	{
+		"name": "artem_hrms",
+		"logo": "/assets/artem_hrms/logo.png",
+		"title": "BMC HRMS",
+		"route": "/artem_hrms"
+	}
+]
 
 # Includes in <head>
 # ------------------
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/artem_hrms/css/artem_hrms.css"
-# app_include_js = "/assets/artem_hrms/js/artem_hrms.js"
+app_include_js = [
+    "/assets/artem_hrms/js/redirect_bmc_hrms.js",
+]
 
 # include js, css files in header of web template
 # web_include_css = "/assets/artem_hrms/css/artem_hrms.css"
@@ -43,7 +44,10 @@ app_license = "mit"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-# doctype_js = {"doctype" : "public/js/doctype.js"}
+doctype_js = {
+	"Employee": "public/js/employee.js",
+	"HR Settings": "public/js/hr_settings.js"
+}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -138,34 +142,24 @@ app_license = "mit"
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+doc_events = {
+	"Employee": {
+		"on_update": "artem_hrms.doc_events.employee.update_administrative_officer_permissions"
+	},
+	"Employee Checkin": {
+		"validate": "artem_hrms.doc_events.employee_checkin.employee_validation"
+	}
+}
+
 
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"all": [
-# 		"artem_hrms.tasks.all"
-# 	],
-# 	"daily": [
-# 		"artem_hrms.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"artem_hrms.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"artem_hrms.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"artem_hrms.tasks.monthly"
-# 	],
-# }
+scheduler_events = {
+	"daily": [
+		"artem_hrms.tasks.daily_attendance_sync"
+	]
+}
 
 # Testing
 # -------
@@ -179,6 +173,112 @@ app_license = "mit"
 # extend_doctype_class = {
 # 	"Task": "artem_hrms.custom.task.CustomTaskMixin"
 # }
+
+override_doctype_class = {
+	"Department": "artem_hrms.doc_events.department.CustomDepartment",
+	"Employee Checkin": "artem_hrms.doc_events.employee_checkin.CustomEmployeeCheckin",
+}
+
+
+fixtures = [
+    # {
+    #     "dt": "Workspace",
+    #     "filters": [
+    #         ["name", "=", "BMC HRMS"]
+    #     ]
+    # },
+    # {
+    #     "dt": "Desktop Icon",
+    #     "filters": [
+    #         ["label", "=", "BMC HRMS"]
+    #     ]
+    # },
+    {
+        "dt": "Custom HTML Block",
+        "filters": [
+            ["name", "in", ["Attendance-Table"
+                            # "Attendance-Dashboard"
+                            ]]
+        ]
+    },
+    {
+        "dt": "Server Script",
+        "filters": [
+            ["name", "in", [
+                # "permission query ao",
+                # "checkin_restrict",
+                # "get-attendance-dashboard-data",
+                "get_data_k"
+            ]]
+        ]
+    }
+    # {
+    #     "dt": "Custom Field",
+    #     "filters": [
+    #         ["dt", "in", ["Employee", "User"]]
+    #     ]
+    # },
+    # {
+    #     "dt": "Property Setter",
+    #     "filters": [
+    #         ["doc_type", "in", ["Employee", "User"]],
+    #         ["name", "in", [
+    #             "permission query ao",
+    #             "checkin_restrict",
+    #             "get-attendance-dashboard-data",
+    #             "get_data_k"
+    #         ]]
+    #     ]
+    # }
+    # {
+    #     "dt": "Workspace",
+    #     "filters": [
+    #         ["name", "=", "BMC Attendance"]
+    #     ]
+    # },
+    # {
+    #     "dt": "Workspace Sidebar",
+    #     "filters": [
+    #         ["name", "=", "BMC HR"]
+    #     ]
+    # },
+    # {
+    #     "dt": "Desktop Icon",
+    #     "filters": [
+    #         ["label", "=", "BMC HR"],
+    #         ["standard", "=", 1]
+    #     ]
+    # },
+    # {
+    #     "dt": "Workspace",
+    #     "filters": [
+    #         ["name", "=", "Employee Dashboard"]
+    #     ]
+    # },
+    # {
+    #     "doctype": "Workspace",
+    #     "filters": [
+    #         ["module", "=", "BMC HR"]  # Replace with the exact Module Def name of your app
+    #     ]
+    # }
+	# {
+    #     "dt": "Translation",
+    #     "filters": [
+    #         [
+    #             "source_text",
+    #             "in",
+    #             [
+    #                 "Transactions cannot be created for an Inactive Employee {0}.",
+    #                 "You must be within {0} meters of your shift location to check in."
+    #             ]
+    #         ]
+    #     ]
+    # }
+]
+
+extend_bootinfo = [
+    "artem_hrms.overrides.boot_session"
+]
 
 # Overriding Methods
 # ------------------------------
@@ -255,4 +355,3 @@ app_license = "mit"
 # ------------
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
-
