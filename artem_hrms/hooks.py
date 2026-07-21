@@ -16,7 +16,7 @@ add_to_apps_screen = [
         "name": "artem_hrms",
         "logo": "/assets/artem_hrms/logo.png",
         "title": "BMC HRMS",
-        "route": "/artem_hrms"
+        "route": "/desk"
     }
 ]
 
@@ -24,7 +24,7 @@ add_to_apps_screen = [
 # ------------------
 
 # include js, css files in header of desk.html
-# app_include_css = "/assets/artem_hrms/css/artem_hrms.css"
+app_include_css = []
 app_include_js = [
     "/assets/artem_hrms/js/redirect_bmc_hrms.js",
 ]
