@@ -180,109 +180,18 @@ override_doctype_class = {
 }
 
 fixtures = [
-    # {
-    #     "dt": "Workspace",
-    #     "filters": [
-    #         ["name", "=", "BMC HRMS"]
-    #     ]
-    # },
-    # {
-    #     "dt": "Desktop Icon",
-    #     "filters": [
-    #         ["label", "=", "BMC HRMS"]
-    #     ]
-    # },
-    {
-        "dt": "Server Script",
-        "filters": [
-            ["name", "=", "checkin_restrict"]
-        ]
-    },
     {
         "dt": "Custom HTML Block",
         "filters": [
-            ["name", "in", ["Attendance-Table", "Attendance-Dashboard"]]
-        ]
-    },
-    # {
-    #     "dt": "Server Script",
-    #     "filters": [
-    #         ["name", "in", [
-    #             # "permission query ao",
-    #             # "checkin_restrict",
-    #             # "get-attendance-dashboard-data",
-    #             "get_data_k"
-    #         ]]
-    #     ]
-    # }
-    # {
-    #     "dt": "Custom Field",
-    #     "filters": [
-    #         ["dt", "in", ["Employee", "User"]]
-    #     ]
-    # },
-    # {
-    #     "dt": "Property Setter",
-    #     "filters": [
-    #         ["doc_type", "in", ["Employee", "User"]],
-    #         ["name", "in", [
-    #             "permission query ao",
-    #             "checkin_restrict",
-    #             "get-attendance-dashboard-data",
-    #             "get_data_k"
-    #         ]]
-    #     ]
-    # }
-    {
-        "dt": "Workspace",
-        "filters": [
-            ["name", "=", "BMC Attendance"]
+            ["name", "in", ["Attendance-Table"]]
         ]
     },
     {
-        "dt": "Workspace",
+        "dt": "Server Script",
         "filters": [
-            ["name", "=", "Employee Dashboard"]
-        ]
-    },
-    {
-        "dt": "Workspace Sidebar",
-        "filters": [
-            ["name", "=", "BMC HR"]
+            ["name", "in", ["get_data_k"]]
         ]
     }
-    # {
-    #     "dt": "Desktop Icon",
-    #     "filters": [
-    #         ["label", "=", "BMC HR"],
-    #         ["standard", "=", 1]
-    #     ]
-    # },
-    # {
-    #     "dt": "Workspace",
-    #     "filters": [
-    #         ["name", "=", "Employee Dashboard"]
-    #     ]
-    # },
-    # {
-    #     "doctype": "Workspace",
-    #     "filters": [
-    #         ["module", "=", "BMC HR"]
-    #     ]
-    # }
-    # {
-    #     "dt": "Translation",
-    #     "filters": [
-    #         [
-    #             "source_text",
-    #             "in",
-    #             [
-    #                 "Transactions cannot be created for an Inactive Employee {0}.",
-    #                 "You must be within {0} meters of your shift location to check in."
-    #             ]
-    #         ]
-    #     ]
-    # }
 ]
 
 extend_bootinfo = []
