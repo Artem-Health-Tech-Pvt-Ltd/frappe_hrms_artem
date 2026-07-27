@@ -1,17 +1,11 @@
 """Filter top-right user dropdown by role.
 
-Why this lives at import-time monkey-patching and not in `extend_bootinfo`:
-
-`frappe.sessions.get()` calls our `extend_bootinfo` hook at line 170, but
-`bootinfo["navbar_settings"]` isn't populated until line 185. Anything we do at
-boot time is overwritten seconds later. So we patch the two source functions
-(`get_navbar_settings` and `frappe.client_cache.get_doc`) so the filtered doc
-is what reaches bootinfo in the first place.
-
-Admin / System Manager -> full menu.
-Everyone else -> only Desktop, Display, Reload.
+`frappe.sessions.get()` calls our `extend_bootinfo` hook at line 170,
+but bootinfo children like `workspace_sidebar_item` are populated by
+load_desktop_data() before that hook and re-built on workspace navigation
+by `frappe.boot.get_sidebar_items()`. To actually filter at the source,
+we monkey-patch `frappe.boot.get_sidebar_items` at import time.
 """
-
 import frappe
 from frappe.core.doctype.navbar_settings import navbar_settings as _ns_module
 
@@ -70,8 +64,3 @@ def _patched_client_cache_get_doc(doctype, *args, **kwargs):
 
 
 frappe.client_cache.get_doc = _patched_client_cache_get_doc
-
-
-# Kept as a no-op for backward compatibility with the extend_bootinfo hook.
-def boot_session(bootinfo):
-    pass

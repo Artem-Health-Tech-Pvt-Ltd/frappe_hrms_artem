@@ -1,0 +1,43 @@
+{
+ "app": "artem_hrms",
+ "charts": [],
+ "content": "[{\"id\": \"bmc-att-h\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h3\\\"><b>BMC Attendance</b></span>\", \"col\": 12}}, {\"id\": \"bmc-att-p\", \"type\": \"paragraph\", \"data\": {\"text\": \"Filter, sort, and export employee attendance details.\"}}, {\"id\": \"card-attendance-dashboard-k\", \"type\": \"custom_block\", \"data\": {\"custom_block_name\": \"attendance-dashboard-k\", \"col\": 12}}, {\"id\": \"card-attendance-table\", \"type\": \"custom_block\", \"data\": {\"custom_block_name\": \"Attendance-Table\", \"col\": 12}}]",
+ "creation": "2026-07-15 12:00:00.000000",
+ "custom_blocks": [
+  {
+   "custom_block_name": "attendance-dashboard-k",
+   "label": "attendance-dashboard-k"
+  },
+  {
+   "custom_block_name": "Attendance-Table",
+   "label": "Attendance-Table"
+  }
+ ],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "external_link": null,
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "calendar",
+ "indicator_color": "green",
+ "is_hidden": 0,
+ "label": "BMC Attendance",
+ "link_to": null,
+ "link_type": "DocType",
+ "links": [],
+ "modified": "2026-07-15 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "",
+ "name": "BMC Attendance",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "restrict_to_domain": null,
+ "roles": [],
+ "sequence_id": 101.0,
+ "shortcuts": [],
+ "title": "BMC Attendance",
+ "type": "Workspace"
+}
