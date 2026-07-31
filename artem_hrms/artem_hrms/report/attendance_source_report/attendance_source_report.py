@@ -5,8 +5,8 @@
 BRANCH_WARD_FIELD = "custom_ward"      # Ward field on Branch doctype
 EMPLOYEE_HOD_FIELD = "custom_hod"             # HOD field on Employee (stores Employee ID of HOD)
 CHECKIN_SOURCE_FIELD = "custom_source" # Source field on Employee Checkin (Data)
-                                       # "Biometric" -> Biometric, empty/null -> Web,
-                                       # value containing "mobile" -> Mobile App
+# "Biometric" -> Biometric, empty/null -> Web,
+# value containing "mobile" -> Mobile App
 
 import json
 from io import BytesIO
@@ -281,15 +281,16 @@ def yes_no(value):
 
 def _flag_value_or_blank(flag_value, custom_value):
 	"""
-	When the Attendance boolean flag (late_entry / early_exit) is set and a
-	custom HH:MM value is stored, return the HH:MM string. Otherwise return an
-	empty string. Keeps the existing 'Yes/No' label semantics out of the two
-	columns per the report requirement.
+	Show the HH:MM late / early-out duration when either:
+	  - the standard Attendance boolean flag (late_entry / early_exit) is set, OR
+	  - the custom HH:MM value has been populated by the sync job.
+	Otherwise return an empty string. Prefer the HH:MM string over the flag
+	so the report always displays how late / how early, not a 'Yes' label.
 	"""
-	if not flag_value:
-		return ""
 	if custom_value:
 		return str(custom_value)
+	if flag_value:
+		return "Yes"
 	return ""
 
 

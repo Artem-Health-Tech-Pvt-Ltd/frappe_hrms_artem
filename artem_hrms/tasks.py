@@ -1,6 +1,43 @@
 import frappe
 from frappe.utils import getdate, add_days, today
-from datetime import datetime, timedelta
+from datetime import datetime, date, time, timedelta
+
+
+# ==========================================
+# TYPE CONVERSION HELPERS (PREVENTS TYPEERROR)
+# ==========================================
+
+def parse_to_date(val):
+    if isinstance(val, date) and not isinstance(val, datetime):
+        return val
+    if isinstance(val, datetime):
+        return val.date()
+    if isinstance(val, str):
+        return datetime.strptime(val.strip(), "%Y-%m-%d").date()
+    raise ValueError(f"Invalid date format: {val}")
+
+
+def parse_to_time(val):
+    if isinstance(val, time):
+        return val
+    if isinstance(val, datetime):
+        return val.time()
+    if isinstance(val, timedelta):
+        tot_secs = int(val.total_seconds())
+        hrs, remainder = divmod(tot_secs, 3600)
+        mins, secs = divmod(remainder, 60)
+        return time(hrs, mins, secs)
+    if isinstance(val, str):
+        val_str = val.strip().zfill(8)
+        if len(val_str) == 5:
+            val_str += ":00"
+        return datetime.strptime(val_str, "%H:%M:%S").time()
+    raise ValueError(f"Invalid time format: {val}")
+
+
+# ==========================================
+# CALCULATION FUNCTIONS
+# ==========================================
 
 def calculate_worked_hours(checkins):
     """
@@ -124,10 +161,16 @@ def _shift_window(start_time, end_time, target_date):
     """Returns (shift_start_dt, shift_end_dt) for the day. End rolls to next
     day when the shift crosses midnight (end_time <= start_time).
     """
-    shift_start_dt = datetime.combine(target_date, start_time)
-    shift_end_dt = datetime.combine(target_date, end_time)
-    if end_time <= start_time:
+    d_obj = parse_to_date(target_date)
+    s_time = parse_to_time(start_time)
+    e_time = parse_to_time(end_time)
+
+    shift_start_dt = datetime.combine(d_obj, s_time)
+    shift_end_dt = datetime.combine(d_obj, e_time)
+
+    if e_time <= s_time:
         shift_end_dt += timedelta(days=1)
+
     return shift_start_dt, shift_end_dt
 
 
@@ -137,18 +180,6 @@ def compute_late_early(checkins, start_time, end_time, shift_name=None):
 
     Returns ('HH:MM', 'HH:MM') for (late_arrival, early_out).
     Both values are empty strings when there is nothing to record.
-
-    Rules:
-      - Skip when the day's shift duration is >= 24 hours (handled by caller).
-      - Late Arrival = max(0, first_in - shift_start_dt - late_grace).
-        If first_in falls before the allowed early-in window, it is not
-        counted as late (the value stays blank).
-      - Early Out uses Option B logic: if the employee clocked in before or
-        exactly at shift start, the expected clock-out moves to
-        first_in + shift_duration (so they only owe their scheduled hours).
-        Late arrivals don't get that slack — expected_end stays at
-        shift_end_dt.  If the last OUT is still within early_exit_grace
-        before the expected end, no early-out is recorded.
     """
     if not start_time or not end_time or not checkins:
         return "", ""
@@ -177,8 +208,6 @@ def compute_late_early(checkins, start_time, end_time, shift_name=None):
             minutes=grace["early_in_window"]
         )
         if first_in < earliest_allowed:
-            # Outside the allowed pre-shift window — too early to count as
-            # "on the way", so we don't mark a late arrival.
             late = ""
         elif first_in > shift_start_dt + timedelta(minutes=grace["late_grace"]):
             delta = first_in - (
@@ -190,8 +219,6 @@ def compute_late_early(checkins, start_time, end_time, shift_name=None):
     early = ""
     if last_out:
         if first_in and first_in <= shift_start_dt:
-            # Arrived on-time (or early): give them back the time they
-            # pre-poned the shift, so they only owe their scheduled duration.
             expected_end = first_in + shift_duration
         else:
             expected_end = shift_end_dt
@@ -201,6 +228,7 @@ def compute_late_early(checkins, start_time, end_time, shift_name=None):
             early = format_hhmm(int(delta.total_seconds() // 60))
 
     return late, early
+
 
 def sync_attendance_for_date(target_date):
     """
@@ -213,7 +241,7 @@ def sync_attendance_for_date(target_date):
     elif not isinstance(target_date, str):
         target_date = str(target_date)
 
-    # 1. Fetch active employees on target_date
+    # 1. Fetch active contract employees on target_date
     employees = frappe.db.sql("""
         SELECT
             name,
@@ -246,14 +274,14 @@ def sync_attendance_for_date(target_date):
 
     # 3. Fetch existing attendances on target_date
     existing_attendances = frappe.db.sql("""
-        SELECT name, employee, status, working_hours, docstatus 
+        SELECT name, employee, status, working_hours, docstatus, shift, in_time, out_time,
+               late_entry, early_exit, custom_late_arrival_minutes, custom_early_out_minutes
         FROM `tabAttendance` 
         WHERE attendance_date = %(date)s
     """, {"date": target_date}, as_dict=True)
     existing_dict = {a.employee: a for a in existing_attendances}
 
-    # 3b. Pre-compute shifts that span the whole day so we skip the
-    # late-arrival / early-out marking for them.
+    # 3b. Pre-compute long rotation shifts (>= 24 hours)
     long_rotation_shifts = get_long_duration_shift_names()
 
     # 4. Process each employee
@@ -262,9 +290,15 @@ def sync_attendance_for_date(target_date):
         try:
             emp_checkins = checkins_by_employee.get(emp.name, [])
             
-            # Extract presence of IN and OUT types
-            has_in = any(c.log_type == "IN" for c in emp_checkins)
-            has_out = any(c.log_type == "OUT" for c in emp_checkins)
+            # Extract IN and OUT times
+            in_logs = [c.time for c in emp_checkins if c.log_type == "IN"]
+            out_logs = [c.time for c in emp_checkins if c.log_type == "OUT"]
+            
+            in_time = sorted(in_logs)[0] if in_logs else None
+            out_time = sorted(out_logs)[-1] if out_logs else None
+
+            has_in = bool(in_logs)
+            has_out = bool(out_logs)
 
             # Rule 1: No IN and No OUT
             if not has_in and not has_out:
@@ -284,13 +318,15 @@ def sync_attendance_for_date(target_date):
                 target_status = "Half Day"
                 worked_hours = 0.0
 
-            # 4b. Late Arrival / Early Out (HH:MM) — skipped for 24h shifts
-            # and when the employee has no punches to measure against.
+            # Resolve Shift & Shift Times
             shift_name, shift_start, shift_end = get_shift_times_for_date(
                 target_date, emp.name
             )
+
+            # Late Arrival / Early Out Calculation
             if (
-                shift_name not in long_rotation_shifts
+                shift_name
+                and shift_name not in long_rotation_shifts
                 and (has_in or has_out)
                 and shift_start
                 and shift_end
@@ -301,25 +337,42 @@ def sync_attendance_for_date(target_date):
             else:
                 late_arrival, early_out = "", ""
 
+            late_entry_flag = 1 if late_arrival else 0
+            early_exit_flag = 1 if early_out else 0
+
             # 5. Create or Update Attendance
             attendance = existing_dict.get(emp.name)
             if attendance:
-                # If existing, check whether any field needs to change.
-                if (attendance.status != target_status
-                    or abs(float(attendance.working_hours or 0) - float(worked_hours)) > 0.01
-                    or late_arrival
-                    or early_out):
-
-                    # Update directly in database to avoid docstatus blocks
-                    frappe.db.set_value("Attendance", attendance.name, {
-                        "status": target_status,
-                        "working_hours": worked_hours,
-                        "custom_late_arrival_minutes": late_arrival,
-                        "custom_early_out_minutes": early_out,
-                    }, update_modified=True)
-                    frappe.clear_document_cache("Attendance", attendance.name)
+                # Direct SQL UPDATE bypasses docstatus=1 field locking on submitted Attendance records
+                frappe.db.sql("""
+                    UPDATE `tabAttendance`
+                    SET
+                        status = %(status)s,
+                        working_hours = %(working_hours)s,
+                        shift = %(shift)s,
+                        in_time = %(in_time)s,
+                        out_time = %(out_time)s,
+                        late_entry = %(late_entry)s,
+                        early_exit = %(early_exit)s,
+                        custom_late_arrival_minutes = %(custom_late)s,
+                        custom_early_out_minutes = %(custom_early)s,
+                        modified = NOW()
+                    WHERE name = %(name)s
+                """, {
+                    "status": target_status,
+                    "working_hours": worked_hours,
+                    "shift": shift_name,
+                    "in_time": in_time,
+                    "out_time": out_time,
+                    "late_entry": late_entry_flag,
+                    "early_exit": early_exit_flag,
+                    "custom_late": late_arrival,
+                    "custom_early": early_out,
+                    "name": attendance.name
+                })
+                frappe.clear_document_cache("Attendance", attendance.name)
             else:
-                # Create a new attendance document
+                # Create new Attendance record
                 att_doc = frappe.new_doc("Attendance")
                 att_doc.employee = emp.name
                 att_doc.employee_name = emp.employee_name
@@ -327,6 +380,11 @@ def sync_attendance_for_date(target_date):
                 att_doc.attendance_date = target_date
                 att_doc.status = target_status
                 att_doc.working_hours = worked_hours
+                att_doc.shift = shift_name
+                att_doc.in_time = in_time
+                att_doc.out_time = out_time
+                att_doc.late_entry = late_entry_flag
+                att_doc.early_exit = early_exit_flag
                 att_doc.custom_late_arrival_minutes = late_arrival
                 att_doc.custom_early_out_minutes = early_out
                 att_doc.naming_series = "HR-ATT-.YYYY.-"
@@ -343,11 +401,13 @@ def sync_attendance_for_date(target_date):
                 message=frappe.get_traceback()
             )
 
+
+# ==========================================
+# BACKGROUND & API FUNCTIONS
+# ==========================================
+
 @frappe.whitelist()
 def get_sync_status():
-    """
-    Returns earliest check-in date, last successfully synced date, and a recommended default start date.
-    """
     earliest = frappe.db.sql("SELECT MIN(time) FROM `tabEmployee Checkin`")[0][0]
     earliest_date = earliest.strftime("%Y-%m-%d") if earliest else today()
 
@@ -364,12 +424,9 @@ def get_sync_status():
         "default_start_date": default_start
     }
 
+
 @frappe.whitelist()
 def trigger_historical_attendance_sync(start_date=None, end_date=None):
-    """
-    Whitelisted method called from the "HR Settings" button.
-    Starts the sequential background execution.
-    """
     if not start_date:
         earliest = frappe.db.sql("SELECT MIN(time) FROM `tabEmployee Checkin`")[0][0]
         if earliest:
@@ -389,21 +446,15 @@ def trigger_historical_attendance_sync(start_date=None, end_date=None):
     )
     return {"status": "success", "message": "Attendance sync task enqueued."}
 
+
 @frappe.whitelist()
 def stop_attendance_sync():
-    """
-    Sends a stop signal to the background sequential sync job.
-    """
     frappe.db.set_global("stop_attendance_sync", "1")
     frappe.db.commit()
     return {"status": "success", "message": "Stop signal sent to the sync job."}
 
+
 def process_attendance_sequential(start_date, end_date, current_date):
-    """
-    Sequentially processes attendance day by day using background queue enqueuing.
-    Prevents system timeouts and memory exhaustion.
-    Checks for stop signal before continuing.
-    """
     if frappe.db.get_global("stop_attendance_sync") == "1":
         frappe.db.set_global("stop_attendance_sync", "0")
         frappe.db.commit()
@@ -414,7 +465,6 @@ def process_attendance_sequential(start_date, end_date, current_date):
 
     sync_attendance_for_date(current_date)
     
-    # Record the last successfully completed date in the system globals
     frappe.db.set_global("last_historical_attendance_sync_date", str(current_date))
     frappe.db.commit()
 
@@ -428,20 +478,15 @@ def process_attendance_sequential(start_date, end_date, current_date):
             current_date=next_date
         )
 
+
 def daily_attendance_sync():
-    """
-    Daily scheduler event task.
-    Enqueues the actual sync job to the 'long' queue to prevent blocking the scheduler.
-    """
     frappe.enqueue(
         "artem_hrms.tasks.run_daily_sync_background",
         queue="long"
     )
 
+
 def run_daily_sync_background():
-    """
-    Runs the daily attendance synchronization for the last 3 days in the background.
-    """
     today_date = today()
     for i in range(3, 0, -1):
         target_date = add_days(today_date, -i)
