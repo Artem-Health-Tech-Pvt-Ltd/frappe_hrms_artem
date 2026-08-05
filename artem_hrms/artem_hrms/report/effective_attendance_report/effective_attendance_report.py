@@ -19,6 +19,8 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, date_diff, formatdate, getdate
 
+from hrms.hr.doctype.leave_application.leave_application import get_leave_details
+
 
 def execute(filters=None):
 	filters = frappe._dict(filters or {})
@@ -91,6 +93,8 @@ def get_columns(period):
 
 	columns.append({"label": _("Total Days"), "fieldname": "total_days", "fieldtype": "Data", "width": 80})
 	columns.append({"label": _("Total Present Days"), "fieldname": "total_present_days", "fieldtype": "Data", "width": 100})
+	columns.append({"label": _("Total Leaves Consumed"), "fieldname": "total_leaves_consumed", "fieldtype": "Int", "width": 110})
+	columns.append({"label": _("Total Leaves Available"), "fieldname": "total_leaves_available", "fieldtype": "Int", "width": 110})
 
 	return columns
 
@@ -104,6 +108,28 @@ def status_letter(status):
 	if status == "On Leave":
 		return "L"
 	return ""
+
+
+def format_hhmm(hours):
+	"""Convert a numeric hour value (or timedelta) to an HH:MM string.
+
+	Accepts a float like 7.37 -> "07:22", a timedelta, or a time. Returns "" for falsy.
+	"""
+	if hours is None or hours == "":
+		return ""
+	# timedelta without .hour attribute (timedelta has .total_seconds())
+	if hasattr(hours, "total_seconds") and not hasattr(hours, "hour"):
+		total_minutes = int(round(hours.total_seconds() / 60))
+		return f"{total_minutes // 60:02d}:{total_minutes % 60:02d}"
+	# datetime.time has .hour and .minute
+	if hasattr(hours, "hour"):
+		return f"{hours.hour:02d}:{hours.minute:02d}"
+	# Numeric (float/int): treat as hours with fractional minutes
+	try:
+		total_minutes = int(round(float(hours) * 60))
+		return f"{total_minutes // 60:02d}:{total_minutes % 60:02d}"
+	except (TypeError, ValueError):
+		return str(hours)
 
 
 def get_employee_rows(filters, period):
@@ -156,17 +182,33 @@ def get_employee_rows(filters, period):
 		hours = rec.working_hours or 0
 		emp["days"][getdate(rec.attendance_date)] = {
 			"letter": status_letter(rec.status),
-			"hours": f"{hours:g}" if hours else "",
+			"hours": format_hhmm(hours) if hours else "",
 		}
 
 	employees = sorted(emp_map.values(), key=lambda e: (e["employee_name"] or ""))
+
+	employee_ids = [e["employee"] for e in employees]
+	balance_map = get_leave_balance_map(employee_ids, period.to_date) if employee_ids else {}
 
 	for emp in employees:
 		marked = [d for d in emp["days"].values() if d["letter"]]
 		emp["total_days"] = len(marked)
 		emp["total_present_days"] = len([d for d in marked if d["letter"] == "P"])
+		emp["total_leaves_consumed"] = len([d for d in marked if d["letter"] == "L"])
+		emp["total_leaves_available"] = balance_map.get(emp["employee"], 0)
 
 	return employees
+
+
+def get_leave_balance_map(employee_ids, date):
+	balance_map = {}
+	for employee in employee_ids:
+		leave_details = get_leave_details(employee, date)
+		balance_map[employee] = sum(
+			allocation.get("remaining_leaves") or 0
+			for allocation in leave_details.get("leave_allocation", {}).values()
+		)
+	return balance_map
 
 
 def get_screen_data(filters, period):
@@ -184,6 +226,8 @@ def get_screen_data(filters, period):
 			"row_label": "P/A",
 			"total_days": str(emp["total_days"]),
 			"total_present_days": str(emp["total_present_days"]),
+			"total_leaves_consumed": emp["total_leaves_consumed"],
+			"total_leaves_available": emp["total_leaves_available"],
 		}
 		hours_row = {
 			"sr_no": "",
@@ -194,6 +238,8 @@ def get_screen_data(filters, period):
 			"row_label": "Working Hours",
 			"total_days": "",
 			"total_present_days": "",
+			"total_leaves_consumed": "",
+			"total_leaves_available": "",
 		}
 
 		for idx, date in enumerate(period.dates, start=1):
@@ -253,11 +299,13 @@ def build_workbook(filters, period):
 	bold = Font(bold=True)
 
 	num_days = len(period.dates)
-	# Columns: 1 Sr | 2 Emp ID | 3 Name | 4 Designation | 5 Joining | 6 label | days | Total Days | Total Present
+	# Columns: 1 Sr | 2 Emp ID | 3 Name | 4 Designation | 5 Joining | 6 label | days | Total Days | Total Present | Total Leaves Consumed | Total Leaves Available
 	first_day_col = 7
 	total_days_col = first_day_col + num_days
 	total_present_col = total_days_col + 1
-	total_cols = total_present_col
+	total_leaves_consumed_col = total_present_col + 1
+	total_leaves_available_col = total_leaves_consumed_col + 1
+	total_cols = total_leaves_available_col
 
 	row = 1
 
@@ -290,7 +338,7 @@ def build_workbook(filters, period):
 	header_row = row
 	headers = ["Sr. No.", "Employee ID", "Name", "Designation", "Joining Date", ""]
 	headers += [get_day_label(d, period) for d in period.dates]
-	headers += ["Total Days", "Total Present Days"]
+	headers += ["Total Days", "Total Present Days", "Total Leaves Consumed", "Total Leaves Available"]
 
 	for col_idx, header in enumerate(headers, start=1):
 		cell = ws.cell(header_row, col_idx, header)
@@ -328,8 +376,14 @@ def build_workbook(filters, period):
 			ws.cell(top, col, day_data["letter"] if day_data else "")
 			ws.cell(bottom, col, day_data["hours"] if day_data else "")
 
-		# totals merged vertically
-		for col_idx, value in ((total_days_col, emp["total_days"]), (total_present_col, emp["total_present_days"])):
+		# totals merged vertically (always; the spec asks for leaves-on-P/A only, but the existing
+		# Excel export already merges Total Days/Present vertically, so we keep that for consistency).
+		for col_idx, value in (
+			(total_days_col, emp["total_days"]),
+			(total_present_col, emp["total_present_days"]),
+			(total_leaves_consumed_col, emp["total_leaves_consumed"]),
+			(total_leaves_available_col, emp["total_leaves_available"]),
+		):
 			ws.merge_cells(start_row=top, start_column=col_idx, end_row=bottom, end_column=col_idx)
 			ws.cell(top, col_idx, value)
 
@@ -370,6 +424,8 @@ def build_workbook(filters, period):
 		ws.column_dimensions[get_column_letter(first_day_col + idx)].width = day_width
 	ws.column_dimensions[get_column_letter(total_days_col)].width = 8
 	ws.column_dimensions[get_column_letter(total_present_col)].width = 10
+	ws.column_dimensions[get_column_letter(total_leaves_consumed_col)].width = 14
+	ws.column_dimensions[get_column_letter(total_leaves_available_col)].width = 14
 
 	# ---- Print setup: landscape, fit to one page wide ----
 	ws.page_setup.orientation = "landscape"

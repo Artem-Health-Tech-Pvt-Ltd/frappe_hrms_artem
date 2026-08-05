@@ -12,19 +12,19 @@ app_license = "mit"
 
 # Each item in the list will be shown as an app in the apps page
 add_to_apps_screen = [
-	{
-		"name": "artem_hrms",
-		"logo": "/assets/artem_hrms/logo.png",
-		"title": "BMC HRMS",
-		"route": "/artem_hrms"
-	}
+    {
+        "name": "artem_hrms",
+        "logo": "/assets/artem_hrms/logo.png",
+        "title": "BMC HRMS",
+        "route": "/desk"
+    }
 ]
 
 # Includes in <head>
 # ------------------
 
 # include js, css files in header of desk.html
-# app_include_css = "/assets/artem_hrms/css/artem_hrms.css"
+app_include_css = []
 app_include_js = [
     "/assets/artem_hrms/js/redirect_bmc_hrms.js",
 ]
@@ -45,8 +45,8 @@ app_include_js = [
 
 # include js in doctype views
 doctype_js = {
-	"Employee": "public/js/employee.js",
-	"HR Settings": "public/js/hr_settings.js"
+    "Employee": "public/js/employee.js",
+    "HR Settings": "public/js/hr_settings.js"
 }
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
@@ -65,7 +65,7 @@ doctype_js = {
 
 # website user home page (by Role)
 # role_home_page = {
-# 	"Role": "home_page"
+#   "Role": "home_page"
 # }
 
 # Generators
@@ -82,8 +82,8 @@ doctype_js = {
 
 # add methods and filters to jinja environment
 # jinja = {
-# 	"methods": "artem_hrms.utils.jinja_methods",
-# 	"filters": "artem_hrms.utils.jinja_filters"
+#   "methods": "artem_hrms.utils.jinja_methods",
+#   "filters": "artem_hrms.utils.jinja_filters"
 # }
 
 # Installation
@@ -131,11 +131,11 @@ doctype_js = {
 # Permissions evaluated in scripted ways
 
 # permission_query_conditions = {
-# 	"Event": "frappe.desk.doctype.event.event.get_permission_query_conditions",
+#   "Event": "frappe.desk.doctype.event.event.get_permission_query_conditions",
 # }
 #
 # has_permission = {
-# 	"Event": "frappe.desk.doctype.event.event.has_permission",
+#   "Event": "frappe.desk.doctype.event.event.has_permission",
 # }
 
 # Document Events
@@ -143,12 +143,12 @@ doctype_js = {
 # Hook on document methods and events
 
 doc_events = {
-	"Employee": {
-		"on_update": "artem_hrms.doc_events.employee.update_administrative_officer_permissions"
-	},
-	"Employee Checkin": {
-		"validate": "artem_hrms.doc_events.employee_checkin.employee_validation"
-	}
+    "Employee": {
+        "on_update": "artem_hrms.doc_events.employee.update_administrative_officer_permissions"
+    },
+    "Employee Checkin": {
+        "validate": "artem_hrms.doc_events.employee_checkin.employee_validation"
+    }
 }
 
 
@@ -156,9 +156,9 @@ doc_events = {
 # ---------------
 
 scheduler_events = {
-	"daily": [
-		"artem_hrms.tasks.daily_attendance_sync"
-	]
+    "daily": [
+        "artem_hrms.tasks.daily_attendance_sync"
+    ]
 }
 
 # Testing
@@ -171,127 +171,43 @@ scheduler_events = {
 #
 # Specify custom mixins to extend the standard doctype controller.
 # extend_doctype_class = {
-# 	"Task": "artem_hrms.custom.task.CustomTaskMixin"
+#   "Task": "artem_hrms.custom.task.CustomTaskMixin"
 # }
 
 override_doctype_class = {
-	"Department": "artem_hrms.doc_events.department.CustomDepartment",
-	"Employee Checkin": "artem_hrms.doc_events.employee_checkin.CustomEmployeeCheckin",
+    "Department": "artem_hrms.doc_events.department.CustomDepartment",
+    "Employee Checkin": "artem_hrms.doc_events.employee_checkin.CustomEmployeeCheckin",
 }
 
-
 fixtures = [
-    # {
-    #     "dt": "Workspace",
-    #     "filters": [
-    #         ["name", "=", "BMC HRMS"]
-    #     ]
-    # },
-    # {
-    #     "dt": "Desktop Icon",
-    #     "filters": [
-    #         ["label", "=", "BMC HRMS"]
-    #     ]
-    # },
     {
         "dt": "Custom HTML Block",
         "filters": [
-            ["name", "in", ["Attendance-Table"
-                            # "Attendance-Dashboard"
-                            ]]
+            ["name", "in", ["Attendance-Table","Attendance-Dashboard"]]
         ]
     },
     {
         "dt": "Server Script",
         "filters": [
-            ["name", "in", [
-                # "permission query ao",
-                # "checkin_restrict",
-                # "get-attendance-dashboard-data",
-                "get_data_k"
-            ]]
+            ["name", "in", ["get_data_k","get-attendance-dashboard-data","checkin_restrict"]]
         ]
     }
-    # {
-    #     "dt": "Custom Field",
-    #     "filters": [
-    #         ["dt", "in", ["Employee", "User"]]
-    #     ]
-    # },
-    # {
-    #     "dt": "Property Setter",
-    #     "filters": [
-    #         ["doc_type", "in", ["Employee", "User"]],
-    #         ["name", "in", [
-    #             "permission query ao",
-    #             "checkin_restrict",
-    #             "get-attendance-dashboard-data",
-    #             "get_data_k"
-    #         ]]
-    #     ]
-    # }
-    # {
-    #     "dt": "Workspace",
-    #     "filters": [
-    #         ["name", "=", "BMC Attendance"]
-    #     ]
-    # },
-    # {
-    #     "dt": "Workspace Sidebar",
-    #     "filters": [
-    #         ["name", "=", "BMC HR"]
-    #     ]
-    # },
-    # {
-    #     "dt": "Desktop Icon",
-    #     "filters": [
-    #         ["label", "=", "BMC HR"],
-    #         ["standard", "=", 1]
-    #     ]
-    # },
-    # {
-    #     "dt": "Workspace",
-    #     "filters": [
-    #         ["name", "=", "Employee Dashboard"]
-    #     ]
-    # },
-    # {
-    #     "doctype": "Workspace",
-    #     "filters": [
-    #         ["module", "=", "BMC HR"]  # Replace with the exact Module Def name of your app
-    #     ]
-    # }
-	# {
-    #     "dt": "Translation",
-    #     "filters": [
-    #         [
-    #             "source_text",
-    #             "in",
-    #             [
-    #                 "Transactions cannot be created for an Inactive Employee {0}.",
-    #                 "You must be within {0} meters of your shift location to check in."
-    #             ]
-    #         ]
-    #     ]
-    # }
 ]
 
-extend_bootinfo = [
-    "artem_hrms.overrides.boot_session"
-]
+extend_bootinfo = []
 
 # Overriding Methods
 # ------------------------------
 #
 # override_whitelisted_methods = {
-# 	"frappe.desk.doctype.event.event.get_events": "artem_hrms.event.get_events"
+#   "frappe.desk.doctype.event.event.get_events": "artem_hrms.event.get_events"
 # }
 #
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,
 # along with any modifications made in other Frappe apps
 # override_doctype_dashboards = {
-# 	"Task": "artem_hrms.task.get_dashboard_data"
+#   "Task": "artem_hrms.task.get_dashboard_data"
 # }
 
 # exempt linked doctypes from being automatically cancelled
@@ -317,38 +233,38 @@ extend_bootinfo = [
 # --------------------
 
 # user_data_fields = [
-# 	{
-# 		"doctype": "{doctype_1}",
-# 		"filter_by": "{filter_by}",
-# 		"redact_fields": ["{field_1}", "{field_2}"],
-# 		"partial": 1,
-# 	},
-# 	{
-# 		"doctype": "{doctype_2}",
-# 		"filter_by": "{filter_by}",
-# 		"partial": 1,
-# 	},
-# 	{
-# 		"doctype": "{doctype_3}",
-# 		"strict": False,
-# 	},
-# 	{
-# 		"doctype": "{doctype_4}"
-# 	}
+#   {
+#       "doctype": "{doctype_1}",
+#       "filter_by": "{filter_by}",
+#       "redact_fields": ["{field_1}", "{field_2}"],
+#       "partial": 1,
+#   },
+#   {
+#       "doctype": "{doctype_2}",
+#       "filter_by": "{filter_by}",
+#       "partial": 1,
+#   },
+#   {
+#       "doctype": "{doctype_3}",
+#       "strict": False,
+#   },
+#   {
+#       "doctype": "{doctype_4}"
+#   }
 # ]
 
 # Authentication and authorization
 # --------------------------------
 
 # auth_hooks = [
-# 	"artem_hrms.auth.validate"
+#   "artem_hrms.auth.validate"
 # ]
 
 # Automatically update python controller files with type annotations for this app.
 # export_python_type_annotations = True
 
 # default_log_clearing_doctypes = {
-# 	"Logging DocType Name": 30  # days to retain logs
+#   "Logging DocType Name": 30  # days to retain logs
 # }
 
 # Translation
