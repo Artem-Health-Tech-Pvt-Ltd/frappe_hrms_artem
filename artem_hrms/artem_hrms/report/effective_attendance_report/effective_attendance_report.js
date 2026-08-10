@@ -1,3 +1,6 @@
+// Cache the current user's permitted branches so the multi-select dropdown
+// can pre-select all of them by default and so the get_data xcall stays cheap.
+let ea_permitted_branches = null;
 
 frappe.query_reports["Effective Attendance Report"] = {
 	filters: [
@@ -16,23 +19,53 @@ frappe.query_reports["Effective Attendance Report"] = {
 			reqd: 1,
 		},
 		{
-			// Single branch only - report runs for exactly one selected branch
+			// Multi-select branch filter. Options are restricted at runtime to
+			// branches the logged-in user is permitted to view. When left
+			// empty, the report defaults to all permitted branches server-side.
 			fieldname: "branch",
 			label: __("Organization (Branch)"),
-			fieldtype: "Link",
-			options: "Branch",
-			reqd: 1,
+			fieldtype: "MultiSelectList",
+			get_data: function (txt) {
+				const selected = get_ms_values("branch");
+				return frappe
+					.xcall(
+						"artem_hrms.artem_hrms.report.effective_attendance_report.effective_attendance_report.get_permitted_branches_for_multiselect",
+						{ txt: txt || "", branches: selected }
+					)
+					.then((branches) =>
+						(branches || []).map((b) => ({ value: b, description: "" }))
+					);
+			},
 		},
 	],
 
 	onload: function (report) {
+		// Prefetch permitted branches once per report load. On failure, leave
+		// the cache as an empty list (the Python-side default will then fall
+		// back to all branches, matching admin behavior).
+		frappe.xcall(
+			"artem_hrms.artem_hrms.report.effective_attendance_report.effective_attendance_report.get_permitted_branches"
+		)
+			.then((branches) => {
+				ea_permitted_branches = Array.isArray(branches) ? branches : [];
+				// Pre-select every permitted branch so the report shows all of
+				// them by default; the user can then narrow further.
+				if (ea_permitted_branches.length) {
+					frappe.query_report.set_filter_value("branch", ea_permitted_branches);
+				}
+			})
+			.catch(() => {
+				ea_permitted_branches = [];
+			});
+
 		// Prominent top-right "Download Formatted Excel" button.
 		report.page.set_primary_action(
 			__("Download Formatted Excel"),
 			function () {
 				const filters = report.get_values();
-				if (!filters || !filters.branch) {
-					frappe.msgprint(__("Please select an Organization (Branch) first"));
+				const branches = get_ms_values("branch");
+				if (!branches.length) {
+					frappe.msgprint(__("Please select at least one Organization (Branch) first"));
 					return;
 				}
 				open_url_post(frappe.request.url, {
@@ -49,6 +82,24 @@ frappe.query_reports["Effective Attendance Report"] = {
 		inject_month_group_header_effective(datatable);
 	},
 };
+
+function get_ms_values(fieldname) {
+	const v = frappe.query_report.get_filter_value(fieldname);
+	if (!v) return [];
+	if (Array.isArray(v)) return v.filter(Boolean);
+	if (typeof v === "string") {
+		if (v.startsWith("[") && v.endsWith("]")) {
+			try {
+				const parsed = JSON.parse(v);
+				if (Array.isArray(parsed)) return parsed.filter(Boolean);
+			} catch (e) {
+				/* fallthrough */
+			}
+		}
+		return v ? [v] : [];
+	}
+	return [];
+}
 
 // ---------------------------------------------------------------------------
 // Grouped month header overlay (mirrors Attendance Report styling)

@@ -39,7 +39,6 @@ def validate_filters(filters):
 
 def get_columns():
 	return [
-		{"label": _("Sr. No."), "fieldname": "sr_no", "fieldtype": "Int", "width": 60},
 		{"label": _("Ward Name"), "fieldname": "ward", "fieldtype": "Data", "width": 120},
 		{"label": _("Organization (Branch)"), "fieldname": "branch", "fieldtype": "Link", "options": "Branch", "width": 150},
 		{"label": _("Employee ID"), "fieldname": "employee", "fieldtype": "Data", "width": 110},
@@ -73,7 +72,7 @@ def get_data(filters):
 	shift_map = get_shift_map()
 
 	data = []
-	for sr_no, att in enumerate(attendance_records, start=1):
+	for att in attendance_records:
 		# Strip stray ASCII double-quotes that some upstream imports
 		# embedded into the employee value (e.g. "HR-EMP-03603" -> HR-EMP-03603).
 		clean_employee = _clean_employee_value(att.employee)
@@ -82,10 +81,6 @@ def get_data(filters):
 
 		row = build_row(att, checkins, shift_map)
 		row["employee"] = clean_employee
-		# Sr. No. lives at the very FIRST column but is populated here AFTER
-		# every filter so the on-screen table and the Excel download share
-		# the same sequential index.
-		row["sr_no"] = sr_no
 		data.append(row)
 
 	return data
@@ -398,8 +393,15 @@ def build_row(att, checkins, shift_map):
 
 @frappe.whitelist()
 def get_ward_options(txt=""):
-	"""Distinct ward values from Branch.custom_ward for the Ward MultiSelectList."""
-	filters = {}
+	"""Distinct ward values from Branch.custom_ward for the Ward MultiSelectList.
+
+	Restricted to wards belonging to branches the current user is permitted to view.
+	"""
+	permitted_branches = _get_permitted_branches()
+	if permitted_branches is None:
+		permitted_branches = [b.name for b in frappe.get_all("Branch", order_by="name asc")]
+
+	filters = {"name": ("in", permitted_branches)}
 	if txt:
 		filters[BRANCH_WARD_FIELD] = ["like", f"%{txt}%"]
 
@@ -414,10 +416,16 @@ def get_ward_options(txt=""):
 
 @frappe.whitelist()
 def get_branch_options(txt="", wards=None):
-	"""Branch MultiSelectList options, narrowed by the selected Ward(s)."""
-	filters = {}
+	"""Branch MultiSelectList options, narrowed by selected Ward(s) and by the
+	user's permitted branches."""
+	permitted_branches = _get_permitted_branches()
+	if permitted_branches is None:
+		permitted_branches = [b.name for b in frappe.get_all("Branch", order_by="name asc")]
+
+	filters = {"name": ("in", permitted_branches)}
 	if txt:
-		filters["name"] = ["like", f"%{txt}%"]
+		filters["name"] = ["in", permitted_branches]  # keep permitted scope
+		# additional text filter is applied post-fetch
 	ward_list = _as_list(wards)
 	if ward_list:
 		filters[BRANCH_WARD_FIELD] = ["in", ward_list]
@@ -428,12 +436,19 @@ def get_branch_options(txt="", wards=None):
 		fields=["name"],
 		order_by="name asc",
 	)
+
+	# Apply typeahead text filter on top of the permitted / ward-narrowed set
+	if txt:
+		needle = txt.strip().lower()
+		branches = [b for b in branches if needle in (b.name or "").lower()]
+
 	return branches
 
 
 @frappe.whitelist()
 def get_department_query(wards=None, branches=None):
-	"""Return department names reachable from the selected wards/branches.
+	"""Return department names reachable from the selected wards/branches AND
+	the user's permitted employees.
 
 	Used by the Attendance Source Report filter's get_query to populate the
 	Department dropdown options dynamically.
@@ -448,6 +463,7 @@ def get_department_query(wards=None, branches=None):
 	ward_list = _as_list(wards)
 	branch_list = _as_list(branches)
 
+	# Resolve ward -> branch list when only wards are selected
 	if ward_list and not branch_list:
 		branch_list = frappe.get_all(
 			"Branch",
@@ -455,18 +471,78 @@ def get_department_query(wards=None, branches=None):
 			pluck="name",
 		) or []
 
+	# Intersect with permitted branches
+	permitted_branches = _get_permitted_branches()
+	if permitted_branches is None:
+		permitted_branches = [b.name for b in frappe.get_all("Branch", order_by="name asc")]
+
+	if branch_list:
+		branch_list = [b for b in branch_list if b in permitted_branches]
+	else:
+		branch_list = list(permitted_branches)
+
 	if not branch_list:
 		return []
 
+	# Departments are derived from permitted Employees (not raw Employee table)
+	# so users without standard read access to all Employees see only their own.
+	permitted_employees = frappe.get_list("Employee", pluck="name")
+	if not permitted_employees:
+		return [d.name for d in frappe.get_all("Department", order_by="name asc")]
+
 	dept_names = frappe.get_all(
 		"Employee",
-		filters={"branch": ["in", branch_list]},
+		filters={
+			"name": ("in", permitted_employees),
+			"branch": ("in", branch_list),
+		},
 		pluck="department",
 		distinct=True,
 	)
-	# Drop empty / null entries
 	dept_names = [d for d in dept_names if d]
 	return [{"name": d} for d in sorted(set(dept_names))]
+
+
+# ---------------------------------------------------------------------------
+# Permission-aware filter options (mirrors Effective Attendance Report)
+# ---------------------------------------------------------------------------
+
+def _get_explicit_branch_permissions():
+	return frappe.get_all(
+		"User Permission",
+		filters={"user": frappe.session.user, "allow": "Branch"},
+		pluck="for_value",
+	)
+
+
+def _get_derived_branch_permissions():
+	# Respects standard Frappe perms + any User Permission rows with allow="Employee".
+	permitted_employees = frappe.get_list("Employee", pluck="name")
+	if not permitted_employees:
+		return []
+
+	return frappe.get_all(
+		"Employee",
+		filters={"name": ("in", permitted_employees)},
+		pluck="branch",
+	)
+
+
+def _get_permitted_branches():
+	"""Return the union of branches the current user can see.
+
+	Returns None when no permission rows exist (admin fallback — caller should
+	use all branches). Returns a sorted list otherwise.
+	"""
+	explicit = _get_explicit_branch_permissions()
+	derived = _get_derived_branch_permissions()
+
+	combined = {b for b in (explicit + derived) if b}
+
+	if not combined:
+		return None
+
+	return sorted(combined)
 
 
 
