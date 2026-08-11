@@ -8,9 +8,11 @@ FIELD_MAP = {
     "designation": "designation",
     "department": "department",
     "branch": "branch",
-    "ao_id": "custom_ao_id",
-    "hod_id": "custom_hod_id",
 }
+
+# Fields whose values must match an existing master record. If the supplied value
+# does not resolve, the field is silently skipped and logged.
+MASTER_LINK_FIELDS = {"designation", "department", "branch"}
 
 
 def _extract_updates(payload):
@@ -26,8 +28,6 @@ def _extract_updates(payload):
         if isinstance(item, dict):
             updates.append(item)
     return updates
-
-
 def _resolve_employee_id(username):
     """Resolve a username (User.name) -> Employee.name via User.email -> Employee.user_id."""
     username = (username or "").strip()
@@ -49,6 +49,32 @@ def _resolve_employee_id(username):
         )
 
     return employee
+def _resolve_master(doctype, value):
+    """Return the existing master name for `value` in `doctype`, or None if missing.
+
+    Lookup is case-insensitive and trimmed. Empty/None values return None.
+    """
+    if value is None:
+        return None
+    candidate = str(value).strip()
+    if not candidate:
+        return None
+
+    name_field = "name"
+    label_field = {
+        "Department": "department_name",
+        "Designation": "designation_name",
+        "Branch": "branch",
+    }.get(doctype, "name")
+
+    # Match on either the doc's primary name or its label field (case-insensitive).
+    rows = frappe.get_all(doctype, fields=[name_field, label_field])
+    for row in rows:
+        if candidate.lower() == (row.get(name_field) or "").lower():
+            return row.get(name_field)
+        if candidate.lower() == (row.get(label_field) or "").lower():
+            return row.get(name_field)
+    return None
 
 
 @frappe.whitelist(allow_guest=False)
@@ -58,8 +84,8 @@ def sync_employee_master(**kwargs):
     Accepts:
         {
           "updates": [
-            {"username": "EMP-001", "employment_type": "Contract"},
-            {"username": "EMP-002", "employment_type": "Permanent"}
+            {"username": "Drneelamk", "employment_type": "Contract"},
+            {"username": "manojk", "employment_type": "Permanent"}
           ]
         }
 
@@ -82,13 +108,27 @@ def sync_employee_master(**kwargs):
 
     for record in updates:
         username = (record.get("username") or "").strip()
+        record_errors = []
         try:
             employee_id = _resolve_employee_id(username)
 
             updates_to_apply = {}
             for source_field, target_field in FIELD_MAP.items():
-                if source_field in record and record[source_field] is not None:
-                    updates_to_apply[target_field] = record[source_field]
+                if source_field not in record or record[source_field] is None:
+                    continue
+
+                value = record[source_field]
+
+                if target_field in MASTER_LINK_FIELDS:
+                    master_name = _resolve_master(target_field, value)
+                    if not master_name:
+                        record_errors.append(
+                            f"{source_field} '{value}' not found in {target_field} master; skipped"
+                        )
+                        continue
+                    updates_to_apply[target_field] = master_name
+                else:
+                    updates_to_apply[target_field] = value
 
             if not updates_to_apply:
                 raise ValueError("No supported fields supplied for update")
@@ -100,6 +140,12 @@ def sync_employee_master(**kwargs):
                 .run()
             )
 
+            if record_errors:
+                error_log.append({
+                    "username": username or record.get("username"),
+                    "status": "partial",
+                    "message": "; ".join(record_errors),
+                })
             success += 1
 
         except Exception as e:

@@ -91,6 +91,9 @@ def validate_filters(filters):
 	if filters.department and not filters.branch:
 		frappe.throw(_("Please select at least one Organization (Branch) before filtering by Department"))
 
+	if not filters.branch and not filters.ward:
+		frappe.throw(_("Please select a Ward or Organization (Branch) from the filter to generate this report"))
+
 	# Cap the range to avoid pathological column counts (mirrors the JS 90-day check).
 	from frappe.utils import date_diff
 	if date_diff(filters.to_date, filters.from_date) > 90:

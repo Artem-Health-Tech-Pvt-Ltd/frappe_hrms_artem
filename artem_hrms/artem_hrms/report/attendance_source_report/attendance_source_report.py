@@ -36,6 +36,12 @@ def validate_filters(filters):
 	if filters.department and not filters.branch:
 		frappe.throw(_("Please select an Organization (Branch) before filtering by Department"))
 
+	# Require at least Ward or Branch to scope the report
+	ward_values = _as_list(filters.get("ward"))
+	branch_values = _as_list(filters.get("branch"))
+	if not ward_values and not branch_values:
+		frappe.throw(_("Please select a Ward or Organization (Branch) from the filter to generate this report"))
+
 
 def get_columns():
 	return [
