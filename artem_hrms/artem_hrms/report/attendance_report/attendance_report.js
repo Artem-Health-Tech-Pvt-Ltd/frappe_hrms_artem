@@ -28,10 +28,11 @@ frappe.query_reports["Attendance Report"] = {
 			label: __("Ward"),
 			fieldtype: "MultiSelectList",
 			get_data: function (txt) {
+				const branches = get_ms_values("branch");
 				return frappe
 					.xcall(
-						"artem_hrms.artem_hrms.report.attendance_report.attendance_report.get_ward_options",
-						{ txt: txt || "" }
+						"artem_hrms.artem_hrms.report.attendance_report.attendance_report.get_permitted_ward_options",
+						{ txt: txt || "", branches: branches }
 					)
 					.then((wards) =>
 						(wards || []).map((w) => ({ value: w, description: "" }))
@@ -46,7 +47,14 @@ frappe.query_reports["Attendance Report"] = {
 			label: __("Organization (Branch)"),
 			fieldtype: "MultiSelectList",
 			get_data: function (txt) {
-				return frappe.db.get_link_options("Branch", txt);
+				return frappe
+					.xcall(
+						"artem_hrms.artem_hrms.report.attendance_report.attendance_report.get_permitted_branch_options",
+						{ txt: txt || "" }
+					)
+					.then((branches) =>
+						(branches || []).map((b) => ({ value: b, description: "" }))
+					);
 			},
 			on_change: function () {
 				toggle_department_filter();
@@ -58,7 +66,15 @@ frappe.query_reports["Attendance Report"] = {
 			label: __("Department"),
 			fieldtype: "MultiSelectList",
 			get_data: function (txt) {
-				return frappe.db.get_link_options("Department", txt);
+				const branches = get_ms_values("branch");
+				return frappe
+					.xcall(
+						"artem_hrms.artem_hrms.report.attendance_report.attendance_report.get_permitted_department_options",
+						{ txt: txt || "", branches: branches }
+					)
+					.then((departments) =>
+						(departments || []).map((d) => ({ value: d, description: "" }))
+					);
 			},
 		},
 	],
@@ -102,6 +118,13 @@ function toggle_department_filter() {
 		dept_filter.df.read_only = 1;
 	}
 	dept_filter.refresh_input();
+}
+
+function get_ms_values(fieldname) {
+	const v = frappe.query_report.get_filter_value(fieldname);
+	if (!v) return [];
+	if (Array.isArray(v)) return v;
+	return [v];
 }
 
 function validate_date_range() {
@@ -207,7 +230,7 @@ function inject_month_group_header(datatable) {
 		// Reserve the same horizontal space as the identity columns (sr_no + ward + branch + employee + employee_name + department + designation = 7)
 		// by adding a left spacer that matches those columns' widths in flex.
 		const spacer = document.createElement("div");
-		spacer.style.cssText = "flex:0 0 auto; min-width:710px;"; // matches sum of prefix column widths (60+100+140+110+160+130+110)
+		spacer.style.cssText = "flex:0 0 auto; min-width:650px;"; // matches sum of prefix column widths (100+140+110+160+130+110)
 		overlay.appendChild(spacer);
 
 		groups.forEach((g) => {
