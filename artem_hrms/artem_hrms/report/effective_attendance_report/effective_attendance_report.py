@@ -138,6 +138,10 @@ def validate_filters(filters):
 	# Branch is now optional. When omitted, the report defaults to the user's
 	# permitted branches (set in get_employee_rows).
 
+	branch_values = _as_list(filters.get("branch"))
+	if not branch_values:
+		frappe.throw(_("Please select an Organization (Branch) from the filter to generate this report"))
+
 	# keep the day-wise matrix printable; remove/raise this limit if needed
 	if date_diff(filters.to_date, filters.from_date) + 1 > 92:
 		frappe.throw(_("Date range cannot exceed 92 days for this report"))
