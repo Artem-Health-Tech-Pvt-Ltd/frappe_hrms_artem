@@ -14,6 +14,23 @@ FIELD_MAP = {
 # does not resolve, the field is silently skipped and logged.
 MASTER_LINK_FIELDS = {"designation", "department", "branch"}
 
+# HMIS-side labels -> Frappe Employment Type names.
+# Lookup is case-insensitive after stripping. Unmapped values pass through and
+# are validated against the Employment Type doctype like other link fields.
+EMPLOYMENT_TYPE_ALIASES = {
+    "permanent": "Full-time",
+    "full-time": "Full-time",
+    "fulltime": "Full-time",
+    "contract": "Contract",
+    "part-time": "Part-time",
+    "parttime": "Part-time",
+    "probation": "Probation",
+    "intern": "Intern",
+    "apprentice": "Apprentice",
+    "commission": "Commission",
+    "piecework": "Piecework",
+}
+
 
 def _extract_updates(payload):
     if not isinstance(payload, dict):
@@ -117,9 +134,23 @@ def sync_employee_master(**kwargs):
                 if source_field not in record or record[source_field] is None:
                     continue
 
-                value = record[source_field]
+                raw_value = record[source_field]
+                value = str(raw_value).strip() if raw_value is not None else ""
 
-                if target_field in MASTER_LINK_FIELDS:
+                if value == "":
+                    updates_to_apply[target_field] = ""
+                    continue
+
+                if target_field == "employment_type":
+                    canonical = EMPLOYMENT_TYPE_ALIASES.get(value.lower(), value)
+                    master_name = _resolve_master("Employment Type", canonical)
+                    if not master_name:
+                        record_errors.append(
+                            f"{source_field} '{value}' not found in Employment Type master; skipped"
+                        )
+                        continue
+                    updates_to_apply[target_field] = master_name
+                elif target_field in MASTER_LINK_FIELDS:
                     master_name = _resolve_master(target_field, value)
                     if not master_name:
                         record_errors.append(
