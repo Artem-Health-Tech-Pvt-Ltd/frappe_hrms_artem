@@ -129,13 +129,13 @@ const AS_MONTH_PALETTE = [
 ];
 
 // Column groups (matching Attendance Source Report column order)
-//   Details  : sr_no, ward, branch, employee, employee_name, department
+//   Details  : ward, branch, employee, employee_name, department
 //   Date     : attendance_date  (highlighted per-month)
 //   Identity : hod_name
 //   Sources  : check_in_source, check_out_source
 //   Summary  : attendance, shift_time, check_in_time, check_out_time,
 //              working_hours, late_punch, early_out, missed_punch
-const AS_DETAIL_FIELDS = ["sr_no", "ward", "branch", "employee", "employee_name", "department"];
+const AS_DETAIL_FIELDS = ["ward", "branch", "employee", "employee_name", "department"];
 const AS_DATE_FIELDS = ["attendance_date"];
 const AS_IDENTITY_FIELDS = ["hod_name"];
 const AS_SOURCES_FIELDS = ["check_in_source", "check_out_source"];
