@@ -1,20 +1,7 @@
 # Copyright (c) 2026
 # Attendance Report - server side logic
-#
-# One row per employee, with day columns generated dynamically from the
-# selected Date Range. Day cells use:
-#   P = Present / Work From Home, HD = Half Day, A = Absent,
-#   leave days show the Leave Type abbreviation (Casual Leave -> CL, ...),
-#   "L" if no leave type is set.
-#
-# Filters:
-#   1) Date range (mandatory)
-#   2) Ward       - multi select (values come from Branch.custom_ward)
-#   3) Branch     - multi select
-#   4) Department - multi select, only usable when Branch is selected
-#
-# Fieldname configuration:
-BRANCH_WARD_FIELD = "custom_ward"  # Ward field on Branch doctype
+
+BRANCH_WARD_FIELD = "custom_ward"
 
 import json
 from io import BytesIO
@@ -23,9 +10,6 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, formatdate, getdate
 
-# Identity columns before the day columns. Sr. No. lives FIRST and is
-# populated after every filter (date / ward / branch / department) so the
-# on-screen table and the Excel download share the same sequential index.
 PREFIX_COLUMNS = (
     {"label": _("Ward"), "fieldname": "ward", "fieldtype": "Data", "width": 100},
     {"label": _("Organization"), "fieldname": "branch", "fieldtype": "Link", "options": "Branch", "width": 140},
@@ -34,7 +18,7 @@ PREFIX_COLUMNS = (
     {"label": _("Department"), "fieldname": "department", "fieldtype": "Link", "options": "Department", "width": 130},
     {"label": _("Designation"), "fieldname": "designation", "fieldtype": "Data", "width": 110},
 )
-# Trailing columns after the day columns.
+
 SUFFIX_COLUMNS = (
     {"label": _("Total Present"), "fieldname": "total_present", "fieldtype": "Int", "width": 90},
     {"label": _("Total Absent"), "fieldname": "total_absent", "fieldtype": "Int", "width": 90},
@@ -58,7 +42,6 @@ def execute(filters=None):
 
 
 def parse_list(value):
-    """MultiSelectList filters arrive as JSON strings; normalize to a list."""
     if not value:
         return []
     if isinstance(value, str):
@@ -67,11 +50,6 @@ def parse_list(value):
 
 
 def _strip_quotes(value):
-    """Remove stray ASCII double-quotes wrapping a value.
-
-    Some upstream imports stored IDs wrapped in literal '"..."' characters.
-    Strip them so the report renders cleanly.
-    """
     if value is None:
         return value
     if isinstance(value, str):
@@ -94,14 +72,12 @@ def validate_filters(filters):
     if not filters.branch and not filters.ward:
         frappe.throw(_("Please select a Ward or Organization (Branch) from the filter to generate this report"))
 
-    # Cap the range to avoid pathological column counts (mirrors the JS 90-day check).
     from frappe.utils import date_diff
     if date_diff(filters.to_date, filters.from_date) > 90:
         frappe.throw(_("Date range cannot exceed 90 days for this report"))
 
 
 def get_dates_in_range(from_date, to_date):
-    """Inclusive list of date objects between from_date and to_date."""
     dates = []
     current = getdate(from_date)
     end = getdate(to_date)
@@ -114,7 +90,6 @@ def get_dates_in_range(from_date, to_date):
 def get_columns(dates):
     columns = list(PREFIX_COLUMNS)
     for d in dates:
-        # fieldname encodes the full ISO date so the JS overlay can group by month
         columns.append(
             {"label": str(d.day), "fieldname": f"d_{d.isoformat()}", "fieldtype": "Data", "width": 42}
         )
@@ -123,7 +98,6 @@ def get_columns(dates):
 
 
 def leave_abbreviation(leave_type):
-    """Casual Leave -> CL, Sick Leave -> SL, Leave Without Pay -> LWP ..."""
     if not leave_type:
         return "L"
     return "".join(word[0] for word in leave_type.split() if word).upper()
@@ -141,10 +115,31 @@ def day_value(status, leave_type):
     return ""
 
 
+# ---------------------------------------------------------------------------
+# Strict Permitted Employee Extraction
+# ---------------------------------------------------------------------------
+
+def _get_permitted_employees():
+    """
+    Returns ONLY the exact employee records visible in the logged-in user's
+    standard Employee List View.
+    """
+    if frappe.session.user == "Administrator":
+        return None
+
+    # Evaluates native Role & User Permissions strictly without manual expansion
+    return frappe.get_all("Employee", pluck="name", ignore_permissions=False)
+
+
 def get_attendance_records(filters):
     Attendance = frappe.qb.DocType("Attendance")
     Employee = frappe.qb.DocType("Employee")
     Branch = frappe.qb.DocType("Branch")
+
+    # 1. Strictly restrict to permitted employees first
+    permitted_employees = _get_permitted_employees()
+    if permitted_employees is not None and not permitted_employees:
+        return []
 
     query = (
         frappe.qb.from_(Attendance)
@@ -168,18 +163,9 @@ def get_attendance_records(filters):
         .where(Attendance.attendance_date <= filters.to_date)
     )
 
-    # -------------------------------------------------------------------
-    # STEP 1: RESTRICT STRICTLY TO PERMITTED EMPLOYEES FIRST
-    # -------------------------------------------------------------------
-    permitted_employees = _get_permitted_employees()
     if permitted_employees is not None:
-        if not permitted_employees:
-            return []
         query = query.where(Employee.name.isin(permitted_employees))
 
-    # -------------------------------------------------------------------
-    # STEP 2: APPLY USER-SELECTED REPORT FILTERS
-    # -------------------------------------------------------------------
     if filters.branch:
         query = query.where(Employee.branch.isin(filters.branch))
     if filters.ward:
@@ -195,7 +181,6 @@ def get_attendance_records(filters):
 def get_data(filters, dates):
     records = get_attendance_records(filters)
 
-    # group by employee only
     grouped = {}
     for rec in records:
         date = getdate(rec.attendance_date)
@@ -208,8 +193,8 @@ def get_data(filters, dates):
                 "employee_name": rec.employee_name,
                 "department": rec.department,
                 "designation": rec.designation,
-                "days": {},          # iso_date -> value
-                "leave_counts": {},  # abbreviation -> count
+                "days": {},
+                "leave_counts": {},
             },
         )
         value = day_value(rec.status, rec.leave_type)
@@ -240,7 +225,7 @@ def get_data(filters, dates):
                 total_present += 1
             elif value == "A":
                 total_absent += 1
-            elif value:  # any leave abbreviation (CL, SL, L, ...)
+            elif value:
                 total_leave += 1
 
         row["total_present"] = total_present
@@ -261,7 +246,6 @@ def get_data(filters, dates):
 
 @frappe.whitelist()
 def download_excel(filters=None):
-    """Formatted Excel export of the Attendance Report (one row per employee)."""
     if isinstance(filters, str):
         filters = json.loads(filters)
     filters = frappe._dict(filters or {})
@@ -282,7 +266,6 @@ def download_excel(filters=None):
     ws = wb.active
     ws.title = "Attendance"
 
-    # ---- Month-grouped header (row 1) ----
     groups = []
     current = None
     for d in dates:
@@ -310,11 +293,7 @@ def download_excel(filters=None):
         "July", "August", "September", "October", "November", "December",
     ]
 
-    # ---- Row 1: merged header groups ----
-    ws.merge_cells(
-        start_row=1, start_column=1,
-        end_row=1, end_column=prefix_count,
-    )
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=prefix_count)
     identity_cell = ws.cell(1, 1, "")
     identity_cell.fill = header_fill
     identity_cell.font = header_font
@@ -344,7 +323,6 @@ def download_excel(filters=None):
     trailing_header.alignment = center
     trailing_header.border = border
 
-    # ---- Row 2: per-column labels ----
     for col_idx, col in enumerate(columns, start=1):
         cell = ws.cell(2, col_idx, col["label"])
         cell.fill = header_fill
@@ -355,7 +333,6 @@ def download_excel(filters=None):
     ws.row_dimensions[2].height = 26
     ws.freeze_panes = "A3"
 
-    # ---- Data rows ----
     for row_idx, row in enumerate(data, start=3):
         for col_idx, col in enumerate(columns, start=1):
             value = row.get(col["fieldname"], "")
@@ -386,134 +363,32 @@ def download_excel(filters=None):
     frappe.local.response.type = "binary"
 
 
-@frappe.whitelist()
-def get_ward_options(txt=""):
-    permitted_branches = _get_permitted_branches()
-    if permitted_branches is not None:
-        branches = permitted_branches
-    else:
-        branches = [b.name for b in frappe.get_all("Branch", order_by="name asc")]
-
-    filters = {"name": ("in", branches)}
-    if txt:
-        filters[BRANCH_WARD_FIELD] = ["like", f"%{txt}%"]
-
-    wards = frappe.get_all(
-        "Branch",
-        filters=filters,
-        pluck=BRANCH_WARD_FIELD,
-        distinct=True,
-    )
-    return sorted({w for w in wards if w})
-
-
 # ---------------------------------------------------------------------------
-# Permission-aware filter options & helpers
+# Filter Whitelists (Scoped strictly to visible employees)
 # ---------------------------------------------------------------------------
 
-def _get_permitted_employees():
-    """
-    Extracts the exact set of Employee IDs that the current user is permitted to see.
-    
-    Covers:
-      1. Standard Frappe permissions on Employee List (Role perms, direct Employee User Perms).
-      2. Explicit User Permissions set for 'Branch'.
-      3. Explicit User Permissions set for 'Department'.
-      4. System Administrator / Unrestricted access check (returns None if no restrictions apply).
-    """
-    if frappe.session.user == "Administrator":
-        return None
-
-    # 1. Direct Employee List permissions
-    permitted_set = set(frappe.get_list("Employee", pluck="name", ignore_permissions=False))
-
-    # 2. Employees accessible via Branch User Permissions
-    branch_perms = frappe.get_all(
-        "User Permission",
-        filters={"user": frappe.session.user, "allow": "Branch"},
-        pluck="for_value",
-    )
-    if branch_perms:
-        branch_employees = frappe.get_all(
-            "Employee",
-            filters={"branch": ["in", branch_perms]},
-            pluck="name",
-        )
-        permitted_set.update(branch_employees)
-
-    # 3. Employees accessible via Department User Permissions
-    dept_perms = frappe.get_all(
-        "User Permission",
-        filters={"user": frappe.session.user, "allow": "Department"},
-        pluck="for_value",
-    )
-    if dept_perms:
-        dept_employees = frappe.get_all(
-            "Employee",
-            filters={"department": ["in", dept_perms]},
-            pluck="name",
-        )
-        permitted_set.update(dept_employees)
-
-    # 4. Check if the user has full unrestricted access across all employees
-    user_has_restrictions = frappe.db.exists("User Permission", {"user": frappe.session.user})
-    total_employee_count = frappe.db.count("Employee")
-
-    if not user_has_restrictions and len(permitted_set) >= total_employee_count:
-        return None  # Unrestricted user
-
-    return list(permitted_set)
-
-
-def _get_explicit_branch_permissions():
-    return frappe.get_all(
-        "User Permission",
-        filters={"user": frappe.session.user, "allow": "Branch"},
-        pluck="for_value",
-    )
-
-
-def _get_derived_branch_permissions():
+def _get_permitted_branches():
     permitted_employees = _get_permitted_employees()
     if permitted_employees is None:
+        return [b.name for b in frappe.get_all("Branch", order_by="name asc")]
+    if not permitted_employees:
         return []
 
-    return frappe.get_all(
+    branches = frappe.get_all(
         "Employee",
         filters={"name": ("in", permitted_employees)},
         pluck="branch",
+        distinct=True,
     )
-
-
-def _get_permitted_branches():
-    explicit = _get_explicit_branch_permissions()
-    derived = _get_derived_branch_permissions()
-
-    combined = {b for b in (explicit + derived) if b}
-
-    if not combined:
-        return None
-
-    return sorted(combined)
-
-
-def _as_list(value):
-    if not value:
-        return []
-    if isinstance(value, str):
-        value = frappe.parse_json(value)
-    return value or []
+    return sorted({b for b in branches if b})
 
 
 @frappe.whitelist()
 def get_permitted_branch_options(txt="", branches=None):
     permitted = _get_permitted_branches()
-    if permitted is None:
-        permitted = [b.name for b in frappe.get_all("Branch", order_by="name asc")]
-
     result = permitted
 
-    selected = _as_list(branches)
+    selected = parse_list(branches)
     if selected:
         result = [b for b in result if b in selected]
 
@@ -527,10 +402,10 @@ def get_permitted_branch_options(txt="", branches=None):
 @frappe.whitelist()
 def get_permitted_ward_options(txt="", branches=None):
     permitted_branches = _get_permitted_branches()
-    if permitted_branches is None:
-        permitted_branches = [b.name for b in frappe.get_all("Branch", order_by="name asc")]
+    if not permitted_branches:
+        return []
 
-    selected = _as_list(branches)
+    selected = parse_list(branches)
     scope_branches = [b for b in permitted_branches if not selected or b in selected]
 
     if not scope_branches:
@@ -559,7 +434,7 @@ def get_permitted_department_options(txt="", branches=None):
     if permitted_employees is not None:
         emp_filters["name"] = ("in", permitted_employees)
 
-    selected = _as_list(branches)
+    selected = parse_list(branches)
     if selected:
         emp_filters["branch"] = ("in", selected)
 
