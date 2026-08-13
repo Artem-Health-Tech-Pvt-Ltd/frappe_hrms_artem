@@ -144,7 +144,10 @@ doctype_js = {
 
 doc_events = {
     "Employee": {
-        "on_update": "artem_hrms.doc_events.employee.update_administrative_officer_permissions"
+        "on_update": [
+            "artem_hrms.doc_events.employee.update_administrative_officer_permissions",
+            "artem_hrms.api.employee_device_id.on_employee_update",
+        ]
     },
     "Employee Checkin": {
         "validate": "artem_hrms.doc_events.employee_checkin.employee_validation"

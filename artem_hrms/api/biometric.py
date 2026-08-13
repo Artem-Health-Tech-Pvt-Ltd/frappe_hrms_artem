@@ -4,7 +4,8 @@ from frappe.utils import get_datetime
 @frappe.whitelist(allow_guest=False)
 def checkin_ingest():
     """
-    Ingest biometric punches from Machine
+    Ingest biometric punches from Machine.
+    Matches user_id against either 'attendance_device_id' OR 'custom_aadhar_number'.
     """
 
     data = frappe.request.get_json()
@@ -53,10 +54,14 @@ def checkin_ingest():
 
             punch_time = get_datetime(timestamp)
 
+            # Query matching either attendance_device_id OR custom_aadhar_number
             employee = frappe.db.get_value(
                 "Employee",
-                {"attendance_device_id": user_id},
-                "name"
+                or_filters=[
+                    ["attendance_device_id", "=", user_id],
+                    ["custom_aadhar_number", "=", user_id]
+                ],
+                fieldname="name"
             )
 
             # Employee Not Found
@@ -66,7 +71,7 @@ def checkin_ingest():
                     "user_id": user_id,
                     "timestamp": timestamp,
                     "status": "skipped",
-                    "message": f"No employee mapped with attendance_device_id={user_id}"
+                    "message": f"No employee found with attendance_device_id or custom_aadhar_number = '{user_id}'"
                 })
                 continue
 
