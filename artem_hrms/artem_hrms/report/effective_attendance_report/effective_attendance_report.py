@@ -1,17 +1,8 @@
 # Copyright (c) 2026
 # Effective of Contractual Staff - server side logic
-#
-# Filters: 1) Date range (From Date / To Date, mandatory)
-#          2) Organization (Branch) - multi-select, optional (defaults to
-#             the user's permitted branches)
-#
-# Master table: Attendance (docstatus = 1) only.
-# Each employee occupies TWO rows: "P/A" row and "Working Hours" row.
-# P = Present or Half Day (also Work From Home), A = Absent, L = On Leave.
-#
-# Fieldname configuration:
-BRANCH_WARD_FIELD = "custom_ward"  # Ward field on Branch doctype
-EMPLOYMENT_TYPE = "Contract"       # only employees with this Employment Type are included
+
+BRANCH_WARD_FIELD = "custom_ward"
+EMPLOYMENT_TYPE = "Contract"
 
 import json
 from io import BytesIO
@@ -35,7 +26,6 @@ def execute(filters=None):
 
 
 def _as_list(value):
-    """Coerce a MultiSelectList filter value (str, list, tuple, None) to a flat list."""
     if not value:
         return []
     if isinstance(value, (list, tuple)):
@@ -49,107 +39,45 @@ def _as_list(value):
                     return [str(x) for x in parsed if x not in (None, "")]
             except Exception:
                 pass
-            try:
-                import ast as _ast
-                parsed = _ast.literal_eval(v)
-                if isinstance(parsed, (list, tuple)):
-                    return [str(x) for x in parsed if x not in (None, "")]
-            except Exception:
-                pass
         return [v]
     return [str(value)]
 
 
 # ---------------------------------------------------------------------------
-# Permission Resolution Helpers
+# Strict Permitted Employee Extraction
 # ---------------------------------------------------------------------------
 
 def _get_permitted_employees():
     """
-    Extracts the exact set of Employee IDs that the current user is permitted to see.
-    
-    Covers:
-      1. Standard Frappe permissions on Employee List (Role perms, direct Employee User Perms).
-      2. Explicit User Permissions set for 'Branch'.
-      3. Explicit User Permissions set for 'Department'.
-      4. System Administrator / Unrestricted access check (returns None if no restrictions apply).
+    Returns ONLY the exact employee records visible in the logged-in user's
+    standard Employee List View.
     """
     if frappe.session.user == "Administrator":
         return None
 
-    # 1. Direct Employee List permissions (as seen on user's Employee List View)
-    permitted_set = set(frappe.get_list("Employee", pluck="name", ignore_permissions=False))
-
-    # 2. Employees accessible via Branch User Permissions
-    branch_perms = frappe.get_all(
-        "User Permission",
-        filters={"user": frappe.session.user, "allow": "Branch"},
-        pluck="for_value",
-    )
-    if branch_perms:
-        branch_employees = frappe.get_all(
-            "Employee",
-            filters={"branch": ["in", branch_perms]},
-            pluck="name",
-        )
-        permitted_set.update(branch_employees)
-
-    # 3. Employees accessible via Department User Permissions
-    dept_perms = frappe.get_all(
-        "User Permission",
-        filters={"user": frappe.session.user, "allow": "Department"},
-        pluck="for_value",
-    )
-    if dept_perms:
-        dept_employees = frappe.get_all(
-            "Employee",
-            filters={"department": ["in", dept_perms]},
-            pluck="name",
-        )
-        permitted_set.update(dept_employees)
-
-    # 4. Check if the user has full unrestricted access across all employees
-    user_has_restrictions = frappe.db.exists("User Permission", {"user": frappe.session.user})
-    total_employee_count = frappe.db.count("Employee")
-
-    if not user_has_restrictions and len(permitted_set) >= total_employee_count:
-        return None  # Unrestricted user
-
-    return list(permitted_set)
-
-
-def _get_explicit_branch_permissions():
-    return frappe.get_all(
-        "User Permission",
-        filters={"user": frappe.session.user, "allow": "Branch"},
-        pluck="for_value",
-    )
+    # Evaluates native Role & User Permissions strictly without manual expansion
+    return frappe.get_all("Employee", pluck="name", ignore_permissions=False)
 
 
 def _get_derived_branch_permissions():
     permitted_employees = _get_permitted_employees()
     if permitted_employees is None:
+        return [b.name for b in frappe.get_all("Branch", order_by="name asc")]
+    if not permitted_employees:
         return []
 
-    return frappe.get_all(
+    branches = frappe.get_all(
         "Employee",
         filters={"name": ("in", permitted_employees)},
         pluck="branch",
+        distinct=True,
     )
+    return sorted({b for b in branches if b})
 
 
 @frappe.whitelist()
 def get_permitted_branches():
-    """Return the union of branches the current user can see."""
-    explicit = _get_explicit_branch_permissions()
-    derived = _get_derived_branch_permissions()
-
-    combined = {b for b in (explicit + derived) if b}
-
-    if not combined:
-        return [b.name for b in frappe.get_all("Branch", order_by="name asc")]
-
-    return sorted(combined)
+    return _get_derived_branch_permissions()
 
 
 @frappe.whitelist()
@@ -262,9 +190,7 @@ def get_employee_rows(filters, period):
     Attendance = frappe.qb.DocType("Attendance")
     Employee = frappe.qb.DocType("Employee")
 
-    # -------------------------------------------------------------------
-    # STEP 1: RESTRICT STRICTLY TO PERMITTED EMPLOYEES FIRST
-    # -------------------------------------------------------------------
+    # Strictly limit to permitted employees first
     permitted_employees = _get_permitted_employees()
     if permitted_employees is not None and not permitted_employees:
         return []
@@ -395,10 +321,6 @@ def get_screen_data(filters, period):
     return data
 
 
-# ---------------------------------------------------------------------------
-# Excel Download
-# ---------------------------------------------------------------------------
-
 @frappe.whitelist()
 def download_excel(filters=None):
     if isinstance(filters, str):
@@ -459,7 +381,6 @@ def build_workbook(filters, period):
 
     row = 1
 
-    # ---- Title ----
     ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=total_cols)
     title_cell = ws.cell(row, 1, f"Effective of Contractual Staff at {title_branches} Dispensary/HBT")
     title_cell.font = Font(bold=True, size=13)
@@ -467,12 +388,10 @@ def build_workbook(filters, period):
     ws.row_dimensions[row].height = 24
     row += 1
 
-    # ---- "To," block ----
     ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=5)
     ws.cell(row, 1, "To,").alignment = left_align
     row += 2
 
-    # ---- Ward (left) + Period (right) ----
     ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=4)
     ward_cell = ws.cell(row, 1, f"Ward - {ward}")
     ward_cell.font = Font(bold=True, underline="single")
@@ -484,7 +403,6 @@ def build_workbook(filters, period):
     period_cell.alignment = Alignment(horizontal="right", vertical="center")
     row += 1
 
-    # ---- Header row ----
     header_row = row
     headers = ["Sr. No.", "Employee ID", "Name", "Designation", "Joining Date", ""]
     headers += [get_day_label(d, period) for d in period.dates]
@@ -498,7 +416,6 @@ def build_workbook(filters, period):
     ws.row_dimensions[header_row].height = 30
     row += 1
 
-    # ---- Employee blocks (2 rows each) ----
     for sr_no, emp in enumerate(employees, start=1):
         top, bottom = row, row + 1
 
@@ -543,7 +460,6 @@ def build_workbook(filters, period):
 
         row += 2
 
-    # ---- Sign & stamp footer ----
     row += 1
     ws.merge_cells(start_row=row, start_column=1, end_row=row + 1, end_column=5)
     sign_cell = ws.cell(row, 1, "Sign & stamp of MO/ Sr.MO")
@@ -552,7 +468,6 @@ def build_workbook(filters, period):
     ws.row_dimensions[row].height = 20
     ws.row_dimensions[row + 1].height = 20
 
-    # ---- Column widths ----
     name_width = max([len(e["employee_name"] or "") for e in employees] + [12]) + 2
     designation_width = max([len(e["designation"] or "") for e in employees] + [11]) + 2
     emp_id_width = max([len(e["employee"] or "") for e in employees] + [11]) + 2
@@ -571,7 +486,6 @@ def build_workbook(filters, period):
     ws.column_dimensions[get_column_letter(total_leaves_consumed_col)].width = 14
     ws.column_dimensions[get_column_letter(total_leaves_available_col)].width = 14
 
-    # ---- Print setup ----
     ws.page_setup.orientation = "landscape"
     ws.page_setup.fitToWidth = 1
     ws.page_setup.fitToHeight = 0

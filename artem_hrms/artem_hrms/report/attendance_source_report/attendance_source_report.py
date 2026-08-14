@@ -13,7 +13,7 @@ from io import BytesIO
 
 import frappe
 from frappe import _
-from frappe.utils import getdate, formatdate
+from frappe.utils import formatdate, getdate
 
 
 def execute(filters=None):
@@ -88,6 +88,22 @@ def get_data(filters):
     return data
 
 
+# ---------------------------------------------------------------------------
+# Strict Permitted Employee Extraction
+# ---------------------------------------------------------------------------
+
+def _get_permitted_employees():
+    """
+    Returns ONLY the exact employee records visible in the logged-in user's
+    standard Employee List View.
+    """
+    if frappe.session.user == "Administrator":
+        return None
+
+    # Evaluates native Role & User Permissions strictly without manual expansion
+    return frappe.get_all("Employee", pluck="name", ignore_permissions=False)
+
+
 def get_attendance_records(filters):
     Attendance = frappe.qb.DocType("Attendance")
     Employee = frappe.qb.DocType("Employee")
@@ -125,19 +141,13 @@ def get_attendance_records(filters):
         .where(Attendance.attendance_date <= filters.to_date)
     )
 
-    # -------------------------------------------------------------------
-    # STEP 1: RESTRICT STRICTLY TO PERMITTED EMPLOYEES FIRST
-    # -------------------------------------------------------------------
+    # Restrict strictly to permitted employees first
     permitted_employees = _get_permitted_employees()
     if permitted_employees is not None:
         if not permitted_employees:
-            # User has no accessible employees in the system
             return []
         query = query.where(Employee.name.isin(permitted_employees))
 
-    # -------------------------------------------------------------------
-    # STEP 2: APPLY USER-SELECTED REPORT FILTERS
-    # -------------------------------------------------------------------
     ward_values = _as_list(filters.get("ward"))
     branch_values = _as_list(filters.get("branch"))
     department_values = _as_list(filters.get("department"))
@@ -161,60 +171,6 @@ def get_attendance_records(filters):
     query = query.orderby(Attendance.attendance_date).orderby(Attendance.employee)
 
     return query.run(as_dict=True)
-
-
-def _get_permitted_employees():
-    """
-    Extracts the exact set of Employee IDs that the current user is permitted to see.
-    
-    Covers:
-      1. Standard Frappe permissions on Employee List (Role permissions, direct Employee User Permissions, Permission Queries).
-      2. Explicit User Permissions set for 'Branch'.
-      3. Explicit User Permissions set for 'Department'.
-      4. System Administrator / Unrestricted access check (returns None if no restrictions apply).
-    """
-    if frappe.session.user == "Administrator":
-        return None
-
-    # 1. Direct Employee List permissions (as seen on user's Employee List View)
-    permitted_set = set(frappe.get_list("Employee", pluck="name", ignore_permissions=False))
-
-    # 2. Employees accessible via Branch User Permissions
-    branch_perms = frappe.get_all(
-        "User Permission",
-        filters={"user": frappe.session.user, "allow": "Branch"},
-        pluck="for_value",
-    )
-    if branch_perms:
-        branch_employees = frappe.get_all(
-            "Employee",
-            filters={"branch": ["in", branch_perms]},
-            pluck="name",
-        )
-        permitted_set.update(branch_employees)
-
-    # 3. Employees accessible via Department User Permissions
-    dept_perms = frappe.get_all(
-        "User Permission",
-        filters={"user": frappe.session.user, "allow": "Department"},
-        pluck="for_value",
-    )
-    if dept_perms:
-        dept_employees = frappe.get_all(
-            "Employee",
-            filters={"department": ["in", dept_perms]},
-            pluck="name",
-        )
-        permitted_set.update(dept_employees)
-
-    # 4. Check if the user has full unrestricted access across all employees
-    user_has_restrictions = frappe.db.exists("User Permission", {"user": frappe.session.user})
-    total_employee_count = frappe.db.count("Employee")
-
-    if not user_has_restrictions and len(permitted_set) >= total_employee_count:
-        return None  # Unrestricted user
-
-    return list(permitted_set)
 
 
 def _strip_quotes(value):
@@ -395,14 +351,30 @@ def build_row(att, checkins, shift_map):
 
 
 # ---------------------------------------------------------------------------
-# Dynamic Filter Queries & Options
+# Dynamic Filter Options (Scoped strictly to visible employees)
 # ---------------------------------------------------------------------------
+
+def _get_permitted_branches():
+    permitted_employees = _get_permitted_employees()
+    if permitted_employees is None:
+        return [b.name for b in frappe.get_all("Branch", order_by="name asc")]
+    if not permitted_employees:
+        return []
+
+    branches = frappe.get_all(
+        "Employee",
+        filters={"name": ("in", permitted_employees)},
+        pluck="branch",
+        distinct=True,
+    )
+    return sorted({b for b in branches if b})
+
 
 @frappe.whitelist()
 def get_ward_options(txt=""):
     permitted_branches = _get_permitted_branches()
-    if permitted_branches is None:
-        permitted_branches = [b.name for b in frappe.get_all("Branch", order_by="name asc")]
+    if not permitted_branches:
+        return []
 
     filters = {"name": ("in", permitted_branches)}
     if txt:
@@ -420,8 +392,8 @@ def get_ward_options(txt=""):
 @frappe.whitelist()
 def get_branch_options(txt="", wards=None):
     permitted_branches = _get_permitted_branches()
-    if permitted_branches is None:
-        permitted_branches = [b.name for b in frappe.get_all("Branch", order_by="name asc")]
+    if not permitted_branches:
+        return []
 
     filters = {"name": ("in", permitted_branches)}
     ward_list = _as_list(wards)
@@ -444,6 +416,14 @@ def get_branch_options(txt="", wards=None):
 
 @frappe.whitelist()
 def get_department_query(wards=None, branches=None):
+    permitted_employees = _get_permitted_employees()
+    if permitted_employees is not None and not permitted_employees:
+        return []
+
+    emp_filters = {}
+    if permitted_employees is not None:
+        emp_filters["name"] = ("in", permitted_employees)
+
     ward_list = _as_list(wards)
     branch_list = _as_list(branches)
 
@@ -454,24 +434,8 @@ def get_department_query(wards=None, branches=None):
             pluck="name",
         ) or []
 
-    permitted_branches = _get_permitted_branches()
-    if permitted_branches is None:
-        permitted_branches = [b.name for b in frappe.get_all("Branch", order_by="name asc")]
-
     if branch_list:
-        branch_list = [b for b in branch_list if b in permitted_branches]
-    else:
-        branch_list = list(permitted_branches)
-
-    if not branch_list:
-        return []
-
-    permitted_employees = _get_permitted_employees()
-    emp_filters = {"branch": ("in", branch_list)}
-    if permitted_employees is not None:
-        if not permitted_employees:
-            return []
-        emp_filters["name"] = ("in", permitted_employees)
+        emp_filters["branch"] = ("in", branch_list)
 
     dept_names = frappe.get_all(
         "Employee",
@@ -481,37 +445,6 @@ def get_department_query(wards=None, branches=None):
     )
     dept_names = [d for d in dept_names if d]
     return [{"name": d} for d in sorted(set(dept_names))]
-
-
-def _get_explicit_branch_permissions():
-    return frappe.get_all(
-        "User Permission",
-        filters={"user": frappe.session.user, "allow": "Branch"},
-        pluck="for_value",
-    )
-
-
-def _get_derived_branch_permissions():
-    permitted_employees = _get_permitted_employees()
-    if permitted_employees is None:
-        return []
-
-    return frappe.get_all(
-        "Employee",
-        filters={"name": ("in", permitted_employees)},
-        pluck="branch",
-    )
-
-
-def _get_permitted_branches():
-    explicit = _get_explicit_branch_permissions()
-    derived = _get_derived_branch_permissions()
-
-    combined = {b for b in (explicit + derived) if b}
-    if not combined:
-        return None
-
-    return sorted(combined)
 
 
 # ---------------------------------------------------------------------------
