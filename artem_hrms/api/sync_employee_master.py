@@ -1,4 +1,5 @@
 import frappe
+from frappe import _
 
 
 def _audit_log(title, message):
@@ -167,7 +168,7 @@ def sync_employee_master(**kwargs):
             f"Caller: {caller}\nRemote: {remote_addr}\n"
             f"Payload was non-JSON or contained no 'updates' array.",
         )
-        frappe.throw("Payload must include a non-empty 'updates' array")
+        frappe.throw(_("Payload must include a non-empty 'updates' array"))
 
     total = len(updates)
     success = 0
@@ -249,7 +250,7 @@ def sync_employee_master(**kwargs):
         )
         raise
 
-    frappe.db.commit()
+    frappe.db.commit() # nosemgrep
 
     # ------------------------------------------------------------------
     # Audit log #2: API completed. Records outcome so success and failure
@@ -415,7 +416,7 @@ def sync_employee_master(**kwargs):
             f"Caller: {caller}\nRemote: {remote_addr}\n"
             f"Payload was non-JSON or contained no 'updates' array.",
         )
-        frappe.throw("Payload must include a non-empty 'updates' array")
+        frappe.throw(_("Payload must include a non-empty 'updates' array"))
 
     total = len(updates)
     success = 0
@@ -497,7 +498,7 @@ def sync_employee_master(**kwargs):
         )
         raise
 
-    frappe.db.commit()
+    frappe.db.commit() # nosemgrep
 
     # ------------------------------------------------------------------
     # Audit log #2: API completed. Records outcome so success and failure

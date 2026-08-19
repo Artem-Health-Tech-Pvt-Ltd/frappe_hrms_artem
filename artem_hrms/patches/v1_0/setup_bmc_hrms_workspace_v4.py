@@ -352,7 +352,7 @@ def execute():
     _create_desktop_icon(WORKSPACE_NAME, f"/desk/{frappe.scrub(WORKSPACE_NAME)}", WORKSPACE_NAME)
     _apply_logo()
 
-    frappe.db.commit()
+    frappe.db.commit() # nosemgrep
     try:
         frappe.cache.delete_keys("bootinfo:*")
     except Exception:

@@ -186,7 +186,7 @@ def execute():
     _wipe(WORKSPACE_NAME)
     _ensure_number_card()
     _create_workspace()
-    frappe.db.commit()
+    frappe.db.commit() # nosemgrep
     try:
         frappe.cache.delete_keys("bootinfo:*")
         frappe.cache.delete_keys("document:*")

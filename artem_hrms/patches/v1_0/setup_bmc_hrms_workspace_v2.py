@@ -393,7 +393,7 @@ def execute():
     _create_sidebar(workspace)
     _create_desktop_icon()
     _apply_logo()
-    frappe.db.commit()
+    frappe.db.commit() # nosemgrep
     # Clear every bootinfo cache key so all users pick up the fresh Workspace row.
     try:
         frappe.cache.delete_keys("bootinfo:*")

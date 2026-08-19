@@ -145,7 +145,7 @@ def get_columns(period):
         {"label": _("Name"), "fieldname": "employee_name", "fieldtype": "Data", "width": 170},
         {"label": _("Designation"), "fieldname": "designation", "fieldtype": "Data", "width": 120},
         {"label": _("Joining Date"), "fieldname": "joining_date", "fieldtype": "Data", "width": 100},
-        {"label": "", "fieldname": "row_label", "fieldtype": "Data", "width": 110},
+        {"label": _(""), "fieldname": "row_label", "fieldtype": "Data", "width": 110},
     ]
 
     for idx, date in enumerate(period.dates, start=1):

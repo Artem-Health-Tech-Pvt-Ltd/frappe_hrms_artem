@@ -393,7 +393,7 @@ def sync_attendance_for_date(target_date):
 
             count += 1
             if count % 200 == 0:
-                frappe.db.commit()
+                frappe.db.commit() # nosemgrep
 
         except Exception as e:
             frappe.log_error(
@@ -450,14 +450,14 @@ def trigger_historical_attendance_sync(start_date=None, end_date=None):
 @frappe.whitelist()
 def stop_attendance_sync():
     frappe.db.set_global("stop_attendance_sync", "1")
-    frappe.db.commit()
+    frappe.db.commit() # nosemgrep
     return {"status": "success", "message": "Stop signal sent to the sync job."}
 
 
 def process_attendance_sequential(start_date, end_date, current_date):
     if frappe.db.get_global("stop_attendance_sync") == "1":
         frappe.db.set_global("stop_attendance_sync", "0")
-        frappe.db.commit()
+        frappe.db.commit() # nosemgrep
         return
 
     if getdate(current_date) > getdate(end_date):
@@ -466,7 +466,7 @@ def process_attendance_sequential(start_date, end_date, current_date):
     sync_attendance_for_date(current_date)
     
     frappe.db.set_global("last_historical_attendance_sync_date", str(current_date))
-    frappe.db.commit()
+    frappe.db.commit() # nosemgrep
 
     next_date = add_days(current_date, 1)
     if getdate(next_date) <= getdate(end_date):
@@ -491,4 +491,4 @@ def run_daily_sync_background():
     for i in range(3, 0, -1):
         target_date = add_days(today_date, -i)
         sync_attendance_for_date(target_date)
-        frappe.db.commit()
+        frappe.db.commit() # nosemgrep

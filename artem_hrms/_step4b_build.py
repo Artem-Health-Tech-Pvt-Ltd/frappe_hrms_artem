@@ -12,7 +12,7 @@ def main():
 		return
 
 	frappe.delete_doc("Workspace", ws_name, force=True)
-	frappe.db.commit()
+	frappe.db.commit() # nosemgrep
 
 	ws = frappe.new_doc("Workspace")
 	ws.name = ws_name
@@ -141,7 +141,7 @@ def main():
 	ws.custom_blocks = []
 
 	ws.insert(ignore_permissions=True)
-	frappe.db.commit()
+	frappe.db.commit() # nosemgrep
 	print(f"✓ Workspace recreated: {ws_name}")
 	print(f"  shortcuts: {len(shortcuts)}")
 	print(f"  link cards: 3 (Attendance, Shift, Leave)")

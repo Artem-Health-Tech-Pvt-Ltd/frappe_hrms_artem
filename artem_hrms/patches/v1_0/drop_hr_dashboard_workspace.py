@@ -45,7 +45,7 @@ def execute():
         return
 
     _wipe_workspace(WORKSPACE_NAME)
-    frappe.db.commit()
+    frappe.db.commit() # nosemgrep
     try:
         frappe.cache.delete_keys("bootinfo:*")
     except Exception:

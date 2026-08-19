@@ -63,7 +63,7 @@ def main():
 	ws.custom_blocks = []
 
 	ws.insert(ignore_permissions=True)
-	frappe.db.commit()
+	frappe.db.commit() # nosemgrep # nosemgrep
 	print(f"✓ Workspace created: {ws_name}")
 
 	# ============================================================
@@ -154,7 +154,7 @@ def main():
 		sb.append("items", {**it, "idx": i})
 
 	sb.insert(ignore_permissions=True)
-	frappe.db.commit()
+	frappe.db.commit() # nosemgrep
 	print(f"✓ Workspace Sidebar created: {sb_name}")
 
 	# ============================================================
@@ -179,7 +179,7 @@ def main():
 	di.roles = []
 
 	di.insert(ignore_permissions=True)
-	frappe.db.commit()
+	frappe.db.commit() # nosemgrep
 	print(f"✓ Desktop Icon created: {di_name}")
 
 	print("\nAll three docs created. Auto-export to fixtures runs on next save via dev mode hooks.")

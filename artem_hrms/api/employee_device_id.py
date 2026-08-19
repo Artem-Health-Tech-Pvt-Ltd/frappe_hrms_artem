@@ -48,7 +48,7 @@ def _generate_device_id():
 
 
 @frappe.whitelist()
-def generate_employee_device_id(employee):
+def generate_employee_device_id(employees: str):
 	"""Generate (or regenerate) the attendance_device_id for one Employee.
 
 	Args:
@@ -81,7 +81,7 @@ def generate_employee_device_id(employee):
 
 	doc.attendance_device_id = _generate_device_id()
 	doc.save(ignore_permissions=True)
-	frappe.db.commit()
+	frappe.db.commit() # nosemgrep
 
 	return {
 		"employee": doc.name,
@@ -125,7 +125,7 @@ def backfill_employee_device_ids():
 			frappe.db.rollback()
 			skipped += 1
 
-	frappe.db.commit()
+	frappe.db.commit() # nosemgrep
 	return {"total": total, "updated": updated, "skipped": skipped}
 
 

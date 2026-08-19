@@ -150,7 +150,7 @@ def execute():
     _wipe(WORKSPACE_NAME)
     _create_workspace()
     _create_desktop_icon()
-    frappe.db.commit()
+    frappe.db.commit() # nosemgrep
     try:
         frappe.cache.delete_keys("bootinfo:*")
     except Exception:

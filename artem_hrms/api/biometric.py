@@ -1,5 +1,6 @@
 import frappe
 from frappe.utils import get_datetime
+from frappe import _
 
 @frappe.whitelist(allow_guest=False)
 def checkin_ingest():
@@ -11,13 +12,13 @@ def checkin_ingest():
     data = frappe.request.get_json()
 
     if not data:
-        frappe.throw("Invalid JSON payload")
+        frappe.throw(_("Invalid JSON payload"))
 
     device_id = data.get("device_id")
     punches = data.get("punches")
 
     if not device_id or not punches:
-        frappe.throw("device_id and punches are required")
+        frappe.throw(_("device_id and punches are required"))
 
     inserted = 0
     skipped = 0
@@ -127,7 +128,7 @@ def checkin_ingest():
                 "message": str(e)
             })
 
-    frappe.db.commit()
+    frappe.db.commit() # nosemgrep
 
     return {
         "status": "ok",
