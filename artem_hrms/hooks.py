@@ -144,9 +144,11 @@ doctype_js = {
 
 doc_events = {
     "Employee": {
+        "validate": "artem_hrms.facebio_integration.employee_sync.validate_employee_for_facebio",
         "on_update": [
             "artem_hrms.doc_events.employee.update_administrative_officer_permissions",
             "artem_hrms.api.employee_device_id.on_employee_update",
+            "artem_hrms.facebio_integration.employee_sync.enqueue_employee_sync"
         ]
     },
     "Employee Checkin": {
