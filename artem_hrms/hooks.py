@@ -144,7 +144,12 @@ doctype_js = {
 
 doc_events = {
     "Employee": {
-        "on_update": "artem_hrms.doc_events.employee.update_administrative_officer_permissions"
+        "validate": "artem_hrms.vendor_integration.employee_sync.ensure_attendance_device_id",
+        "on_insert": "artem_hrms.vendor_integration.employee_sync.enqueue_employee_sync",
+        "on_update": [
+            "artem_hrms.doc_events.employee.update_administrative_officer_permissions",
+            "artem_hrms.vendor_integration.employee_sync.enqueue_employee_sync",
+        ],
     },
     "Employee Checkin": {
         "validate": "artem_hrms.doc_events.employee_checkin.employee_validation"
