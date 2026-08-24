@@ -53,11 +53,26 @@ def checkin_ingest():
 
             punch_time = get_datetime(timestamp)
 
+            # Look up employee by attendance_device_id first (fast path)
             employee = frappe.db.get_value(
                 "Employee",
                 {"attendance_device_id": user_id},
                 "name"
             )
+            lookup_method = "attendance_device_id"
+
+            # Fallback: try matching user_id against custom_aadhar_number
+            if not employee:
+                employee = frappe.db.get_value(
+                    "Employee",
+                    {"custom_aadhar_number": user_id},
+                    "name"
+                )
+                if employee:
+                    lookup_method = "custom_aadhar_number"
+                    frappe.logger("biometric").info(
+                        f"Employee {employee} matched by aadhar for user_id={user_id}"
+                    )
 
             # Employee Not Found
             if not employee:
@@ -66,7 +81,7 @@ def checkin_ingest():
                     "user_id": user_id,
                     "timestamp": timestamp,
                     "status": "skipped",
-                    "message": f"No employee mapped with attendance_device_id={user_id}"
+                    "message": f"No employee matched by attendance_device_id or custom_aadhar_number for user_id={user_id}"
                 })
                 continue
 
@@ -109,6 +124,7 @@ def checkin_ingest():
                 "timestamp": timestamp,
                 "status": "inserted",
                 "checkin_id": doc.name,
+                "lookup_method": lookup_method,
                 "message": "Checkin inserted successfully"
             })
 
