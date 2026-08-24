@@ -72,6 +72,7 @@ def enqueue_employee_sync(doc, method):
         queue="short",
         employee_name=doc.name,
         timeout=300,
+        enqueue_after_commit=True,
     )
 
 
@@ -85,21 +86,24 @@ def _api_fields_changed(doc, old):
 
 def run_sync(employee_name, retry_count=0):
     """Background worker: call Add (new) or Update (existing), write result back."""
+    print("step1")
     try:
         employee = frappe.get_doc("Employee", employee_name)
     except frappe.DoesNotExistError:
         return
-
+    print("step2")
     _set_status(employee_name, PENDING)
+    print("step3")
 
     vendor_branch = _resolve_branch(employee.branch)
+    print("step4")
     if not vendor_branch:
         _mark_failed(
             employee_name,
             f"Branch '{employee.branch}' is not in BRANCH_MAP. Sync skipped.",
         )
         return
-
+    print("step5")
     payload = build_payload(employee, vendor_branch)
 
     try:
@@ -255,6 +259,7 @@ def _retry_with_delay(employee_name, retry_count):
             queue="long",
             job_id=f"vendor-429-{employee_name}-{retry_count}",
             employee_name=employee_name,
+            enqueue_after_commit=True,
             retry_count=retry_count + 1,
             timeout=300,
         )
