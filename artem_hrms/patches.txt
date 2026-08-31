@@ -15,3 +15,4 @@ artem_hrms.patches.v1_0.setup_hr_dashboard_workspace
 artem_hrms.patches.v1_0.drop_hr_dashboard_workspace
 artem_hrms.patches.v1_0.recreate_employee_lifecycle_workspace
 artem_hrms.patches.v1_0.create_my_team_workspace
+artem_hrms.vendor_integration.install
