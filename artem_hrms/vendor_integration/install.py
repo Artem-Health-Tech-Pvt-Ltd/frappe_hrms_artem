@@ -3,43 +3,44 @@ from frappe.custom.doctype.custom_field.custom_field import create_custom_field
 
 CUSTOM_FIELDS = [
     {
-        "fieldname": "facebio_employee_id",
-        "label": "FaceBio Employee ID",
+        "fieldname": "vendor_employee_id",
+        "label": "Vendor Employee ID",
         "fieldtype": "Data",
         "read_only": 1,
         "insert_after": "attendance_device_id",
     },
     {
-        "fieldname": "facebio_uuid",
-        "label": "FaceBio UUID",
+        "fieldname": "vendor_uuid",
+        "label": "Vendor UUID",
         "fieldtype": "Data",
         "read_only": 1,
-        "insert_after": "facebio_employee_id",
+        "insert_after": "vendor_employee_id",
     },
     {
-        "fieldname": "facebio_last_sync_status",
-        "label": "FaceBio Sync Status",
+        "fieldname": "vendor_last_sync_status",
+        "label": "Vendor Sync Status",
         "fieldtype": "Select",
         "options": "\nNot Synced\nPending\nSynced\nFailed",
         "read_only": 1,
         "default": "Not Synced",
-        "insert_after": "facebio_uuid",
+        "insert_after": "vendor_uuid",
     },
     {
-        "fieldname": "facebio_last_sync_at",
-        "label": "FaceBio Last Sync At",
+        "fieldname": "vendor_last_sync_at",
+        "label": "Vendor Last Sync At",
         "fieldtype": "Datetime",
         "read_only": 1,
-        "insert_after": "facebio_last_sync_status",
+        "insert_after": "vendor_last_sync_status",
     },
     {
-        "fieldname": "facebio_last_error",
-        "label": "FaceBio Last Error",
+        "fieldname": "vendor_last_error",
+        "label": "Vendor Last Error",
         "fieldtype": "Text",
         "read_only": 1,
-        "insert_after": "facebio_last_sync_at",
+        "insert_after": "vendor_last_sync_at",
     },
 ]
+
 
 def execute():
     for field in CUSTOM_FIELDS:

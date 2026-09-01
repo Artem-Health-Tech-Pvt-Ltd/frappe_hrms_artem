@@ -144,13 +144,13 @@ doctype_js = {
 
 doc_events = {
     "Employee": {
-        "validate": "artem_hrms.facebio_integration.employee_sync.validate_employee_for_facebio",
+        
+        "validate": "artem_hrms.vendor_integration.employee_sync.ensure_attendance_device_id",
+        "on_insert": "artem_hrms.vendor_integration.employee_sync.enqueue_employee_sync",
         "on_update": [
             "artem_hrms.doc_events.employee.update_administrative_officer_permissions",
-            "artem_hrms.api.employee_device_id.on_employee_update",
-            "artem_hrms.facebio_integration.employee_sync.enqueue_employee_sync"
+            "artem_hrms.vendor_integration.employee_sync.enqueue_employee_sync",
         ],
-        'after_save': 'artem_hrms.facebio_integration.employee_sync.enqueue_employee_sync'
     },
     "Employee Checkin": {
         "validate": "artem_hrms.doc_events.employee_checkin.employee_validation"
@@ -187,15 +187,9 @@ override_doctype_class = {
 
 fixtures = [
     {
-        "dt": "Custom HTML Block",
-        "filters": [
-            ["name", "in", ["Attendance-Analytics"]]
-        ]
-    },
-    {
         "dt": "Server Script",
         "filters": [
-            ["name", "in", ["attendance_analytics"]]
+            ["name", "=", "create_employee"]
         ]
     }
 ]

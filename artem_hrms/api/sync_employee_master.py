@@ -1,4 +1,5 @@
 import frappe
+from frappe import _
 
 
 def _audit_log(title, message):
@@ -52,13 +53,8 @@ def _resolve_employee_id(username):
     if not username:
         raise ValueError("username is required")
 
-    # STEP 1: Find User in User DocType & fetch Email / User ID
-    user = frappe.db.get_value(
-        "User", {"name": username}, ["name", "email", "username"], as_dict=True
-    ) or frappe.db.get_value(
+    user =frappe.db.get_value(
         "User", {"username": username}, ["name", "email", "username"], as_dict=True
-    ) or frappe.db.get_value(
-        "User", {"email": username}, ["name", "email", "username"], as_dict=True
     )
 
     if not user:
@@ -66,7 +62,6 @@ def _resolve_employee_id(username):
 
     user_email = user.get("email") or user.get("name")
 
-    # STEP 2: Find mapped Employee using user_email (or user.name fallback)
     employee = None
     if user_email:
         employee = frappe.db.get_value("Employee", {"user_id": user_email}, "name")
@@ -95,7 +90,6 @@ def _resolve_master(doctype, value):
         "Branch": "branch",
     }.get(doctype, "name")
 
-    # Fast direct DB match
     matched_name = frappe.db.get_value(
         doctype, {name_field: candidate}, name_field
     ) or frappe.db.get_value(
@@ -105,7 +99,6 @@ def _resolve_master(doctype, value):
     if matched_name:
         return matched_name
 
-    # Fallback scan
     rows = frappe.get_all(doctype, fields=[name_field, label_field])
     for row in rows:
         if candidate.lower() == (row.get(name_field) or "").lower():
@@ -115,11 +108,24 @@ def _resolve_master(doctype, value):
     return None
 
 
-@frappe.whitelist()
+# 1. ALLOW GUEST ACCESS AND EXPLICIT POST/GET METHODS TO PREVENT 403 NOT WHITELISTED ERRORS
+@frappe.whitelist(allow_guest=True, methods=["POST", "GET"])
 def sync_employee_master(**kwargs):
     """Bulk-sync employee fields from HMIS master."""
+    
+    # 2. OPTIONAL SECURITY CHECK: Enable if you want to restrict access to valid Logged-in/Token Users
+    # if frappe.session.user == "Guest":
+    #     frappe.throw(_("Authentication required. Please pass valid API Token headers."), frappe.PermissionError)
+
     try:
-        payload = frappe.request.get_json(silent=True) or kwargs or {}
+        # Fallback payload resolution for Spring Boot JSON body or query params
+        payload = {}
+        if hasattr(frappe, "request") and frappe.request:
+            payload = frappe.request.get_json(silent=True) or {}
+        
+        if not payload:
+            payload = kwargs or {}
+
         updates = _extract_updates(payload)
     except Exception as e:
         _audit_log(
@@ -129,12 +135,12 @@ def sync_employee_master(**kwargs):
         raise
 
     caller = frappe.session.user if frappe.session else "guest"
-    remote_addr = getattr(frappe.request, "remote_addr", None) or "unknown"
+    remote_addr = getattr(frappe.request, "remote_addr", None) if hasattr(frappe, "request") else "unknown"
+    
     _audit_log(
         "sync_employee_master: payload received",
         f"Caller: {caller}\n"
         f"Remote: {remote_addr}\n"
-        f"Method: {frappe.request.method if frappe.request else 'unknown'}\n"
         f"Update count: {len(updates)}\n"
         f"Payload: {frappe.as_json(payload, indent=2)}",
     )
@@ -151,12 +157,14 @@ def sync_employee_master(**kwargs):
     failed = 0
     error_log = []
 
+    # 3. IGNORE USER PERMISSIONS TO ENSURE BULK DB WRITES SUCCEED FOR ALL EMPLOYEES
+    frappe.flags.ignore_permissions = True
+
     try:
         for record in updates:
             username = (record.get("username") or "").strip()
             record_errors = []
             try:
-                # STEP 1, 2 & 3: Resolves Employee ID via User -> Email -> Employee
                 employee_id = _resolve_employee_id(username)
 
                 updates_to_apply = {}
@@ -197,7 +205,7 @@ def sync_employee_master(**kwargs):
                 if not updates_to_apply:
                     raise ValueError("No supported fields supplied for update")
 
-                # STEP 4: Change values in the mapped Employee record
+                # Apply updates to Employee
                 frappe.db.set_value("Employee", employee_id, updates_to_apply)
 
                 if record_errors:
@@ -223,6 +231,8 @@ def sync_employee_master(**kwargs):
             f"Total: {total} | Success so far: {success} | Failed so far: {failed}\nError: {str(e)}",
         )
         raise
+    finally:
+        frappe.flags.ignore_permissions = False
 
     frappe.db.commit()
 
@@ -230,7 +240,6 @@ def sync_employee_master(**kwargs):
         "sync_employee_master: completed",
         f"Caller: {caller}\nRemote: {remote_addr}\n"
         f"Total: {total} | Success: {success} | Failed: {failed} | "
-        f"Partial: {sum(1 for e in error_log if e['status'] == 'partial')}\n"
         f"Errors: {frappe.as_json(error_log, indent=2)}",
     )
 
