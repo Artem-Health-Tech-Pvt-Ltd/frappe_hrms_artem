@@ -509,7 +509,6 @@ def get_department_query(wards=None, branches=None):
 	dept_names = [d for d in dept_names if d]
 	return [{"name": d} for d in sorted(set(dept_names))]
 
-
 # ---------------------------------------------------------------------------
 # Permission-aware filter options (mirrors Effective Attendance Report)
 # ---------------------------------------------------------------------------

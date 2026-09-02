@@ -299,7 +299,6 @@ def download_excel(filters=None):
 		"January", "February", "March", "April", "May", "June",
 		"July", "August", "September", "October", "November", "December",
 	]
-
 	# ---- Row 1: merged header groups ----
 	# - Identity columns (1..prefix_count) merged into one "Employee" cell.
 	# - Day columns merged by month into one coloured cell per month.

@@ -248,3 +248,4 @@ function inject_month_group_header(datatable) {
 		console.warn("month-group-header injection failed", e);
 	}
 }
+

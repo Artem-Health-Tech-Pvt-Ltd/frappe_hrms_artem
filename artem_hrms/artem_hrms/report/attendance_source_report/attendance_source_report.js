@@ -1,6 +1,5 @@
 // Copyright (c) 2026
 // Attendance Source Report - client side filters
-
 frappe.query_reports["Attendance Source Report"] = {
 	filters: [
 		{

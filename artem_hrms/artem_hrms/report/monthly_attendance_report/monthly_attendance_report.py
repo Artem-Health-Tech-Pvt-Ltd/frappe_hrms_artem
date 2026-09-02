@@ -801,7 +801,6 @@ def get_holiday_status(holiday_date: date, holidays: list) -> str:
 				break
 	return status
 
-
 def get_leave_summary(employee: str, filters: Filters) -> dict[str, float]:
 	"""Returns a dict of leave type and corresponding leaves taken by employee like:
 	{'leave_without_pay': 1.0, 'sick_leave': 2.0}
