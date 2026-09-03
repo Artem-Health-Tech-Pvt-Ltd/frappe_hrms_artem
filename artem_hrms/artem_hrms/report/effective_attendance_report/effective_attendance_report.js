@@ -1,4 +1,4 @@
-// Cache the current user's permitted branches so the multi-select dropdown
+// Effective Attendance Report.js Cache the current user's permitted branches so the multi-select dropdown
 // can pre-select all of them by default and so the get_data xcall stays cheap.
 let ea_permitted_branches = null;
 
@@ -196,3 +196,4 @@ function inject_month_group_header_effective(datatable) {
 		console.warn("month-group-header (effective) failed", e);
 	}
 }
+//code
