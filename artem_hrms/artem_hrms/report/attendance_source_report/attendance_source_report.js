@@ -1,6 +1,5 @@
-// Copyright (c) 2026
+// source report.js Copyright (c) 2026 code
 // Attendance Source Report - client side filters
-
 frappe.query_reports["Attendance Source Report"] = {
 	filters: [
 		{
