@@ -9,7 +9,7 @@
   "doctype_event": "Before Insert",
   "enable_rate_limit": 0,
   "event_frequency": "All",
-  "modified": "2026-08-26 10:48:09.187746",
+  "modified": "2026-09-03 12:09:27.009768",
   "module": null,
   "name": "create_employee",
   "rate_limit_count": 5,
