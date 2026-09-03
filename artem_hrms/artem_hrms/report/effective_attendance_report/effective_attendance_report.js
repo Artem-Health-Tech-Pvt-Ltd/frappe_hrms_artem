@@ -196,3 +196,4 @@ function inject_month_group_header_effective(datatable) {
 		console.warn("month-group-header (effective) failed", e);
 	}
 }
+//code
