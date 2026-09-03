@@ -181,15 +181,9 @@ override_doctype_class = {
 
 fixtures = [
     {
-        "dt": "Custom HTML Block",
+        "doctype": "Server Script",
         "filters": [
-            ["name", "in", ["Attendance-Analytics"]]
-        ]
-    },
-    {
-        "dt": "Server Script",
-        "filters": [
-            ["name", "in", ["attendance_analytics"]]
+            ["name", "=", "create_employee"]
         ]
     }
 ]

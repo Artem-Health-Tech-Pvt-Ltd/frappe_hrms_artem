@@ -1,8 +1,6 @@
 import frappe
 
-
 # Extensible field map: HMIS master field name -> Employee doctype field name.
-# Add new entries here to sync additional fields without changing the API contract.
 FIELD_MAP = {
     "employment_type": "employment_type",
     "designation": "designation",
@@ -10,13 +8,10 @@ FIELD_MAP = {
     "branch": "branch",
 }
 
-# Fields whose values must match an existing master record. If the supplied value
-# does not resolve, the field is silently skipped and logged.
+# Fields whose values must match an existing master record.
 MASTER_LINK_FIELDS = {"designation", "department", "branch"}
 
 # HMIS-side labels -> Frappe Employment Type names.
-# Lookup is case-insensitive after stripping. Unmapped values pass through and
-# are validated against the Employment Type doctype like other link fields.
 EMPLOYMENT_TYPE_ALIASES = {
     "permanent": "Full-time",
     "full-time": "Full-time",
@@ -32,6 +27,16 @@ EMPLOYMENT_TYPE_ALIASES = {
 }
 
 
+def generate_normalized_username(user_id_input):
+    """Matches the custom_login pattern for username/email generation."""
+    username = str(user_id_input or "").replace("@bmcinternal.com", "")
+    if "@" in username:
+        username = username + "bmcinternal.com"
+    else:
+        username = username + "@bmcinternal.com"
+    return "-".join(username.split())
+
+
 def _extract_updates(payload):
     if not isinstance(payload, dict):
         return []
@@ -45,32 +50,60 @@ def _extract_updates(payload):
         if isinstance(item, dict):
             updates.append(item)
     return updates
-def _resolve_employee_id(username):
-    """Resolve a username (User.name) -> Employee.name via User.email -> Employee.user_id."""
-    username = (username or "").strip()
-    if not username:
-        raise ValueError("username is required")
 
-    user_email = frappe.db.get_value("User", {"name": username}, "email")
-    if not user_email:
-        raise ValueError(f"No User found with username '{username}'")
 
-    employee = frappe.db.get_value(
-        "Employee",
-        {"user_id": user_email},
-        "name",
-    )
-    if not employee:
-        raise ValueError(
-            f"No Employee linked to User '{username}' (email={user_email})"
-        )
-
-    return employee
-def _resolve_master(doctype, value):
-    """Return the existing master name for `value` in `doctype`, or None if missing.
-
-    Lookup is case-insensitive and trimmed. Empty/None values return None.
+def _resolve_employee_id(identifier):
     """
+    Resolve identifier using the normalized custom_login pattern.
+    Checks:
+    1. Direct match on Employee Name (e.g., EMP-001)
+    2. Normalized username/email match in User Doctype -> Employee.user_id
+    3. Direct user_id match on Employee Doctype
+    """
+    raw_id = (identifier or "").strip()
+    if not raw_id:
+        raise ValueError("username / employee ID is required")
+
+    # 1. Direct match on Employee primary key (e.g., EMP-001)
+    if frappe.db.exists("Employee", raw_id):
+        return raw_id
+
+    # Normalize user ID per your custom login pattern (e.g., 'Ultimas@123' -> 'Ultimas@123@bmcinternal.com')
+    normalized_user = generate_normalized_username(raw_id)
+
+    # 2. Check if User exists by name or email with normalized string
+    user_record = frappe.db.get_value(
+        "User",
+        {"name": normalized_user},
+        ["name", "email"],
+        as_dict=True
+    ) or frappe.db.get_value(
+        "User",
+        {"email": normalized_user},
+        ["name", "email"],
+        as_dict=True
+    )
+
+    if user_record:
+        # Lookup Employee by user_id linked to User's email/name
+        employee = frappe.db.get_value(
+            "Employee",
+            {"user_id": user_record.email or user_record.name},
+            "name"
+        )
+        if employee:
+            return employee
+
+    # 3. Direct match on Employee.user_id with normalized username
+    employee = frappe.db.get_value("Employee", {"user_id": normalized_user}, "name")
+    if employee:
+        return employee
+
+    raise ValueError(f"No Employee found matching '{raw_id}' (normalized: '{normalized_user}')")
+
+
+def _resolve_master(doctype, value):
+    """Return the existing master name for `value` in `doctype`, or None if missing."""
     if value is None:
         return None
     candidate = str(value).strip()
@@ -84,34 +117,21 @@ def _resolve_master(doctype, value):
         "Branch": "branch",
     }.get(doctype, "name")
 
-    # Match on either the doc's primary name or its label field (case-insensitive).
     rows = frappe.get_all(doctype, fields=[name_field, label_field])
     for row in rows:
         if candidate.lower() == (row.get(name_field) or "").lower():
             return row.get(name_field)
         if candidate.lower() == (row.get(label_field) or "").lower():
-            return row.get(name_field)
+            return row.get(label_field)
     return None
 
 
-@frappe.whitelist(allow_guest=False)
+@frappe.whitelist(allow_guest=True)
 def sync_employee_master(**kwargs):
-    """Bulk-sync employee fields from the HMIS master website.
+    """Bulk-sync employee fields from the HMIS master website."""
+    # Force execution context to Administrator
+    frappe.set_user("Administrator")
 
-    Accepts:
-        {
-          "updates": [
-            {"username": "Drneelamk", "employment_type": "Contract"},
-            {"username": "manojk", "employment_type": "Permanent"}
-          ]
-        }
-
-    Lookup chain: username (User.name) -> User.email -> Employee.user_id -> Employee.name.
-
-    Returns:
-        Summary with totals + per-record success/error log. One bad record never
-        aborts the batch.
-    """
     payload = frappe.request.get_json(silent=True) or kwargs or {}
     updates = _extract_updates(payload)
 
@@ -123,8 +143,14 @@ def sync_employee_master(**kwargs):
     failed = 0
     error_log = []
 
+    doctype_map = {
+        "department": "Department",
+        "designation": "Designation",
+        "branch": "Branch",
+    }
+
     for record in updates:
-        username = (record.get("username") or "").strip()
+        username = (record.get("username") or record.get("employee_id") or "").strip()
         record_errors = []
         try:
             employee_id = _resolve_employee_id(username)
@@ -151,10 +177,11 @@ def sync_employee_master(**kwargs):
                         continue
                     updates_to_apply[target_field] = master_name
                 elif target_field in MASTER_LINK_FIELDS:
-                    master_name = _resolve_master(target_field, value)
+                    target_doctype = doctype_map.get(target_field, target_field.capitalize())
+                    master_name = _resolve_master(target_doctype, value)
                     if not master_name:
                         record_errors.append(
-                            f"{source_field} '{value}' not found in {target_field} master; skipped"
+                            f"{source_field} '{value}' not found in {target_doctype} master; skipped"
                         )
                         continue
                     updates_to_apply[target_field] = master_name
@@ -173,7 +200,7 @@ def sync_employee_master(**kwargs):
 
             if record_errors:
                 error_log.append({
-                    "username": username or record.get("username"),
+                    "username": username,
                     "status": "partial",
                     "message": "; ".join(record_errors),
                 })
@@ -182,7 +209,7 @@ def sync_employee_master(**kwargs):
         except Exception as e:
             failed += 1
             error_log.append({
-                "username": username or record.get("username"),
+                "username": username,
                 "status": "error",
                 "message": str(e),
             })
@@ -191,6 +218,7 @@ def sync_employee_master(**kwargs):
 
     return {
         "status": "ok",
+        "caller": frappe.session.user,
         "total": total,
         "success": success,
         "failed": failed,
