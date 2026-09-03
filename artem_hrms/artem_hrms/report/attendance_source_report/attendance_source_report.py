@@ -510,7 +510,7 @@ def get_department_query(wards=None, branches=None):
 	return [{"name": d} for d in sorted(set(dept_names))]
 
 # ---------------------------------------------------------------------------
-# Permission-aware filter options (mirrors Effective Attendance Report)
+# Permission-aware filter options (mirrors Effective Attendance Report)code
 # ---------------------------------------------------------------------------
 
 def _get_explicit_branch_permissions():

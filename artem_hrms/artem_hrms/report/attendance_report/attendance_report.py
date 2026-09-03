@@ -407,7 +407,7 @@ def get_ward_options(txt=""):
 
 
 # ---------------------------------------------------------------------------
-# Permission-aware filter options (mirrors the Effective Attendance Report)
+# Permission-aware filter options (mirrors the Effective Attendance Report)...
 # ---------------------------------------------------------------------------
 
 def _get_explicit_branch_permissions():
