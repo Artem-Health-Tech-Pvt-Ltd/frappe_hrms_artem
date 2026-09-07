@@ -142,10 +142,121 @@ def day_value(status, leave_type):
 	return ""
 
 
+# ---------------------------------------------------------------------------
+# Permission helpers (used by both the report and the filter-option endpoints)
+# ---------------------------------------------------------------------------
+
+def _get_explicit_branch_permissions():
+	return frappe.get_all(
+		"User Permission",
+		filters={"user": frappe.session.user, "allow": "Branch"},
+		pluck="for_value",
+	)
+
+
+def _get_derived_branch_permissions():
+	# Respects standard Frappe perms + any User Permission rows with allow="Employee".
+	permitted_employees = frappe.get_list("Employee", pluck="name")
+	if not permitted_employees:
+		return []
+
+	return frappe.get_all(
+		"Employee",
+		filters={"name": ("in", permitted_employees)},
+		pluck="branch",
+	)
+
+
+def _get_permitted_branches():
+	"""Return the union of branches the current user can see.
+
+	Returns None when no permission rows exist (admin fallback — caller should
+	use all branches). Returns a sorted list otherwise.
+	"""
+	explicit = _get_explicit_branch_permissions()
+	derived = _get_derived_branch_permissions()
+
+	combined = {b for b in (explicit + derived) if b}
+
+	if not combined:
+		return None
+
+	return sorted(combined)
+
+
+def _as_list(value):
+	if not value:
+		return []
+	if isinstance(value, str):
+		value = frappe.parse_json(value)
+	return value or []
+
+
+def get_allowed_employee_names(branch_list):
+	"""Return employee names the current user can see, restricted to branch_list.
+
+	Uses `frappe.get_list` so standard Frappe perms and any User Permission
+	rows with allow="Employee" are respected. Only Active + Contract employees
+	are returned, matching the WHERE clauses added in `get_attendance_records`.
+	"""
+	if not branch_list:
+		return []
+
+	rows = frappe.get_list(
+		"Employee",
+		filters={
+			"branch": ("in", branch_list),
+			"status": "Active",
+			"employment_type": "Contract",
+		},
+		pluck="name",
+	)
+	return rows or []
+
+
+# ---------------------------------------------------------------------------
+# Data fetching
+# ---------------------------------------------------------------------------
+
 def get_attendance_records(filters):
 	Attendance = frappe.qb.DocType("Attendance")
 	Employee = frappe.qb.DocType("Employee")
 	Branch = frappe.qb.DocType("Branch")
+
+	# Determine permitted branches
+	permitted_branches = _get_permitted_branches()
+	if permitted_branches is None:
+		# No explicit permission restriction -> all branches
+		permitted_branches = [
+			b.name for b in frappe.get_all("Branch", order_by="name asc")
+		]
+
+	# Apply selected Branch filter (intersect with permissions)
+	if filters.branch:
+		branch_list = [b for b in filters.branch if b in permitted_branches]
+	else:
+		branch_list = permitted_branches
+
+	# Apply Ward filter (ward -> branches)
+	if filters.ward:
+		ward_branches = frappe.get_all(
+			"Branch",
+			filters={
+				BRANCH_WARD_FIELD: ["in", filters.ward],
+				"name": ["in", branch_list],
+			},
+			pluck="name",
+		)
+		branch_list = [b for b in branch_list if b in ward_branches]
+
+	# No branch remains after permission/filter intersection
+	if not branch_list:
+		return []
+
+	# Allowed employees (perm-filtered via frappe.get_list, then narrowed to branch_list)
+	allowed_employee_names = get_allowed_employee_names(branch_list)
+	if not allowed_employee_names:
+		return []
 
 	query = (
 		frappe.qb.from_(Attendance)
@@ -167,14 +278,14 @@ def get_attendance_records(filters):
 		.where(Attendance.docstatus == 1)
 		.where(Attendance.attendance_date >= filters.from_date)
 		.where(Attendance.attendance_date <= filters.to_date)
+		.where(Employee.name.isin(allowed_employee_names))
+		.where(Employee.branch.isin(branch_list))
+		.where(Employee.status == "Active")
+		.where(Employee.employment_type == "Contract")
 		.orderby(Attendance.employee)
 		.orderby(Attendance.attendance_date)
 	)
 
-	if filters.branch:
-		query = query.where(Employee.branch.isin(filters.branch))
-	if filters.ward:
-		query = query.where(Branch[BRANCH_WARD_FIELD].isin(filters.ward))
 	if filters.department:
 		query = query.where(Employee.department.isin(filters.department))
 
@@ -247,6 +358,10 @@ def get_data(filters, dates):
 
 	return data
 
+
+# ---------------------------------------------------------------------------
+# Excel export
+# ---------------------------------------------------------------------------
 
 @frappe.whitelist()
 def download_excel(filters=None):
@@ -382,6 +497,10 @@ def download_excel(filters=None):
 	frappe.local.response.type = "binary"
 
 
+# ---------------------------------------------------------------------------
+# Filter option endpoints (called by the JS via frappe.xcall)
+# ---------------------------------------------------------------------------
+
 @frappe.whitelist()
 def get_ward_options(txt=""):
 	"""Distinct ward values from Branch, for the Ward MultiSelectList filter.
@@ -405,56 +524,6 @@ def get_ward_options(txt=""):
 		distinct=True,
 	)
 	return sorted({w for w in wards if w})
-
-
-# ---------------------------------------------------------------------------
-# Permission-aware filter options (mirrors the Effective Attendance Report)...
-# ---------------------------------------------------------------------------
-
-def _get_explicit_branch_permissions():
-	return frappe.get_all(
-		"User Permission",
-		filters={"user": frappe.session.user, "allow": "Branch"},
-		pluck="for_value",
-	)
-
-
-def _get_derived_branch_permissions():
-	# Respects standard Frappe perms + any User Permission rows with allow="Employee".
-	permitted_employees = frappe.get_list("Employee", pluck="name")
-	if not permitted_employees:
-		return []
-
-	return frappe.get_all(
-		"Employee",
-		filters={"name": ("in", permitted_employees)},
-		pluck="branch",
-	)
-
-
-def _get_permitted_branches():
-	"""Return the union of branches the current user can see.
-
-	Returns None when no permission rows exist (admin fallback — caller should
-	use all branches). Returns a sorted list otherwise.
-	"""
-	explicit = _get_explicit_branch_permissions()
-	derived = _get_derived_branch_permissions()
-
-	combined = {b for b in (explicit + derived) if b}
-
-	if not combined:
-		return None
-
-	return sorted(combined)
-
-
-def _as_list(value):
-	if not value:
-		return []
-	if isinstance(value, str):
-		value = frappe.parse_json(value)
-	return value or []
 
 
 @frappe.whitelist()

@@ -105,6 +105,97 @@ def get_permitted_branches():
 
 	return sorted(combined)
 
+def get_allowed_employee_names(branch_list):
+	"""
+	Determine the employee scope for the Effective Attendance Report.
+
+	CASE 1:
+		User has Branch permissions AND Employee permissions for
+		multiple employees.
+		=> Employee scope = Employee Permission ∩ Branch Permission
+
+	CASE 2:
+		User has Branch permissions AND the only Employee permission
+		is their own Employee record.
+		=> Employee scope = ALL eligible Contract employees
+		   in the permitted branches.
+
+	This allows:
+		- 22 employee permissions across Branch A+B -> 22 employees
+		- Self-only employee permission + 5 branch permissions -> all
+		  eligible employees in those 5 branches.
+	"""
+
+	user = frappe.session.user
+
+	# ---------------------------------------------------------
+	# Get employees the user is permitted to access
+	# ---------------------------------------------------------
+	permitted_employee_names = frappe.get_list(
+		"Employee",
+		pluck="name",
+	)
+
+	# ---------------------------------------------------------
+	# No Employee permission data
+	# ---------------------------------------------------------
+	if not permitted_employee_names:
+		return []
+
+	# ---------------------------------------------------------
+	# Get user's own Employee record
+	# ---------------------------------------------------------
+	own_employee = frappe.db.get_value(
+		"Employee",
+		{"user_id": user},
+		"name",
+	)
+
+	# ---------------------------------------------------------
+	# CASE 2:
+	# Employee permission contains ONLY the user's own employee
+	# AND Branch permissions exist.
+	#
+	# Example:
+	#   Branch A+B+C+D+E = 65 employees
+	#   Employee permission = only AO himself
+	#
+	# Result = all eligible employees in those branches.
+	# ---------------------------------------------------------
+	if (
+		own_employee
+		and branch_list
+		and set(permitted_employee_names) == {own_employee}
+	):
+		return frappe.get_all(
+			"Employee",
+			filters={
+				"branch": ["in", branch_list],
+				"status": "Active",
+				"employment_type": EMPLOYMENT_TYPE,
+			},
+			pluck="name",
+		)
+
+	# ---------------------------------------------------------
+	# CASE 1:
+	# Employee permissions contain multiple employees.
+	#
+	# Result:
+	# Employee Permission ∩ Branch Permission
+	# ---------------------------------------------------------
+	branch_employee_names = set(
+		frappe.get_all(
+			"Employee",
+			filters={
+				"name": ["in", permitted_employee_names],
+				"branch": ["in", branch_list],
+			},
+			pluck="name",
+		)
+	)
+
+	return list(branch_employee_names)
 
 @frappe.whitelist()
 def get_permitted_branches_for_multiselect(txt="", branches=None):
@@ -234,21 +325,46 @@ def format_hhmm(hours):
 
 def get_employee_rows(filters, period):
 	"""
-	Fetch attendance for the selected branch(es) + date range and group per employee.
-	Branch filter is a multi-select; when omitted, defaults to the user's
-	permitted branches (so the report stays permission-scoped by default).
-	Returns a list of dicts:
-	{
-		employee, employee_name, designation, date_of_joining,
-		days: {date: {"letter": "P", "hours": "7.5"}},
-		total_days, total_present_days
-	}
+	Fetch attendance for employees allowed by the report permission logic.
+
+	Permission behavior:
+
+	CASE 1:
+		Multiple Employee permissions + Branch permissions
+		=> Employee Permission ∩ Branch Permission
+
+	CASE 2:
+		Only own Employee permission + Branch permissions
+		=> All eligible Contract employees in those branches
+
+	After employee scope is calculated, only employees having
+	submitted Attendance records in the selected date range appear.
 	"""
+
 	Attendance = frappe.qb.DocType("Attendance")
 	Employee = frappe.qb.DocType("Employee")
 
+	# ---------------------------------------------------------
+	# Selected branches
+	# ---------------------------------------------------------
 	branch_list = filters.branch or get_permitted_branches()
 
+	if not branch_list:
+		return []
+
+	# ---------------------------------------------------------
+	# Calculate employee permission scope
+	# ---------------------------------------------------------
+	allowed_employee_names = get_allowed_employee_names(
+		branch_list
+	)
+
+	if not allowed_employee_names:
+		return []
+
+	# ---------------------------------------------------------
+	# Attendance query
+	# ---------------------------------------------------------
 	query = (
 		frappe.qb.from_(Attendance)
 		.inner_join(Employee)
@@ -263,17 +379,32 @@ def get_employee_rows(filters, period):
 			Employee.date_of_joining,
 		)
 		.where(Attendance.docstatus == 1)
-		.where(Attendance.attendance_date >= period.from_date)
-		.where(Attendance.attendance_date <= period.to_date)
-		.where(Employee.branch.isin(branch_list))
-		.where(Employee.employment_type == EMPLOYMENT_TYPE)
+		.where(
+			Attendance.attendance_date >= period.from_date
+		)
+		.where(
+			Attendance.attendance_date <= period.to_date
+		)
+		.where(
+			Employee.name.isin(allowed_employee_names)
+		)
+		.where(
+			Employee.branch.isin(branch_list)
+		)
+		.where(
+			Employee.employment_type == EMPLOYMENT_TYPE
+		)
 		.orderby(Attendance.employee)
 		.orderby(Attendance.attendance_date)
 	)
 
 	records = query.run(as_dict=True)
 
+	# ---------------------------------------------------------
+	# Group attendance by employee
+	# ---------------------------------------------------------
 	emp_map = {}
+
 	for rec in records:
 		emp = emp_map.setdefault(
 			rec.employee,
@@ -285,23 +416,71 @@ def get_employee_rows(filters, period):
 				"days": {},
 			},
 		)
+
 		hours = rec.working_hours or 0
+
 		emp["days"][getdate(rec.attendance_date)] = {
 			"letter": status_letter(rec.status),
 			"hours": format_hhmm(hours) if hours else "",
 		}
 
-	employees = sorted(emp_map.values(), key=lambda e: (e["employee_name"] or ""))
+	# ---------------------------------------------------------
+	# Sort employees
+	# ---------------------------------------------------------
+	employees = sorted(
+		emp_map.values(),
+		key=lambda e: (e["employee_name"] or "")
+	)
 
-	employee_ids = [e["employee"] for e in employees]
-	balance_map = get_leave_balance_map(employee_ids, period.to_date) if employee_ids else {}
+	# ---------------------------------------------------------
+	# Leave balance
+	# ---------------------------------------------------------
+	employee_ids = [
+		e["employee"]
+		for e in employees
+	]
 
+	balance_map = (
+		get_leave_balance_map(
+			employee_ids,
+			period.to_date
+		)
+		if employee_ids
+		else {}
+	)
+
+	# ---------------------------------------------------------
+	# Calculate totals
+	# ---------------------------------------------------------
 	for emp in employees:
-		marked = [d for d in emp["days"].values() if d["letter"]]
+		marked = [
+			d
+			for d in emp["days"].values()
+			if d["letter"]
+		]
+
 		emp["total_days"] = len(marked)
-		emp["total_present_days"] = len([d for d in marked if d["letter"] == "P"])
-		emp["total_leaves_consumed"] = len([d for d in marked if d["letter"] == "L"])
-		emp["total_leaves_available"] = balance_map.get(emp["employee"], 0)
+
+		emp["total_present_days"] = len(
+			[
+				d
+				for d in marked
+				if d["letter"] == "P"
+			]
+		)
+
+		emp["total_leaves_consumed"] = len(
+			[
+				d
+				for d in marked
+				if d["letter"] == "L"
+			]
+		)
+
+		emp["total_leaves_available"] = balance_map.get(
+			emp["employee"],
+			0
+		)
 
 	return employees
 
