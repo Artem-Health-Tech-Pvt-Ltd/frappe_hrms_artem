@@ -91,19 +91,176 @@ def get_data(filters):
 
 	return data
 
+def get_allowed_employee_names(branch_list):
+	"""
+	Determine which employees the Attendance Source Report can show.
+
+	CASE 1:
+		Branch permissions + Employee permissions for multiple employees
+		=> Employee Permission ∩ Branch Permission
+
+	CASE 2:
+		Branch permissions + Employee permission ONLY for the user's
+		own Employee record
+		=> All Active Contract employees in those branches
+	"""
+
+	user = frappe.session.user
+
+	# Employees accessible through standard Frappe permissions
+	permitted_employee_names = frappe.get_list(
+		"Employee",
+		pluck="name",
+	)
+
+	if not permitted_employee_names:
+		return []
+
+	# Current user's own Employee record
+	own_employee = frappe.db.get_value(
+		"Employee",
+		{"user_id": user},
+		"name",
+	)
+
+	# ---------------------------------------------------------
+	# CASE 2
+	# Self-only Employee permission + Branch permission
+	#
+	# Example:
+	#   5 branches = 65 employees
+	#   Employee permission = only AO's own employee
+	#
+	# Result = all employees in those branches
+	# ---------------------------------------------------------
+	if (
+		own_employee
+		and branch_list
+		and set(permitted_employee_names) == {own_employee}
+	):
+		return frappe.get_all(
+			"Employee",
+			filters={
+				"branch": ["in", branch_list],
+				"status": "Active",
+				"employment_type": "Contract",
+			},
+			pluck="name",
+		)
+
+	# ---------------------------------------------------------
+	# CASE 1
+	# Multiple Employee permissions
+	#
+	# Result = Employee Permission ∩ Branch Permission
+	# ---------------------------------------------------------
+	return frappe.get_all(
+		"Employee",
+		filters={
+			"name": ["in", permitted_employee_names],
+			"branch": ["in", branch_list],
+		},
+		pluck="name",
+	)
 
 def get_attendance_records(filters):
-	# CHANGED: was get_employees(). Now the query starts from Attendance and
-	# joins Employee / Branch / HOD to fill the linked-doctype columns.
-	# All filters (branch, ward, department) apply to these attendance rows.
-	# Branch and Ward are now multi-select lists; we resolve them to actual
-	# branch names in one query to keep the attendance join small.
+	"""
+	Fetch submitted Attendance records only for employees allowed by
+	the report permission logic.
+
+	Permission rules:
+
+	CASE 1:
+		Employee permissions + Branch permissions
+		=> Employee Permission ∩ Branch Permission
+
+	CASE 2:
+		Only own Employee permission + Branch permissions
+		=> All Active Contract employees in those branches
+
+	Then apply:
+		- Date range
+		- Ward
+		- Branch
+		- Department
+		- Submitted Attendance
+	"""
+
 	Attendance = frappe.qb.DocType("Attendance")
 	Employee = frappe.qb.DocType("Employee")
 	Branch = frappe.qb.DocType("Branch")
-	# Self-join on Employee to resolve HOD's employee ID -> HOD's name
+
+	# Self-join Employee to resolve HOD Employee ID -> HOD name
 	HOD = frappe.qb.DocType("Employee").as_("hod_emp")
 
+	# ---------------------------------------------------------
+	# Resolve branch filter
+	# ---------------------------------------------------------
+	ward_values = _as_list(filters.get("ward"))
+	branch_values = _as_list(filters.get("branch"))
+	department_values = _as_list(filters.get("department"))
+
+	# ---------------------------------------------------------
+	# Ward selected but Branch not selected
+	# ---------------------------------------------------------
+	if ward_values and not branch_values:
+
+		branch_values = frappe.get_all(
+			"Branch",
+			filters={
+				BRANCH_WARD_FIELD: ["in", ward_values]
+			},
+			pluck="name",
+		)
+
+		if not branch_values:
+			return []
+
+	# ---------------------------------------------------------
+	# If Branch/Ward has not produced a branch list,
+	# use user's permitted branches.
+	# ---------------------------------------------------------
+	if not branch_values:
+		branch_values = _get_permitted_branches()
+
+		if branch_values is None:
+			branch_values = [
+				b.name
+				for b in frappe.get_all(
+					"Branch",
+					order_by="name asc"
+				)
+			]
+
+	# ---------------------------------------------------------
+	# IMPORTANT:
+	# Keep only branches the current user is permitted to access.
+	# ---------------------------------------------------------
+	permitted_branches = _get_permitted_branches()
+
+	if permitted_branches is not None:
+		branch_values = [
+			b
+			for b in branch_values
+			if b in permitted_branches
+		]
+
+	if not branch_values:
+		return []
+
+	# ---------------------------------------------------------
+	# Get employee scope using the two required cases
+	# ---------------------------------------------------------
+	allowed_employee_names = get_allowed_employee_names(
+		branch_values
+	)
+
+	if not allowed_employee_names:
+		return []
+
+	# ---------------------------------------------------------
+	# Build Attendance query
+	# ---------------------------------------------------------
 	query = (
 		frappe.qb.from_(Attendance)
 		.inner_join(Employee)
@@ -130,41 +287,46 @@ def get_attendance_records(filters):
 			Branch[BRANCH_WARD_FIELD].as_("ward"),
 			HOD.employee_name.as_("hod_name"),
 		)
-		.where(Attendance.docstatus == 1)
-		.where(Attendance.attendance_date >= filters.from_date)
-		.where(Attendance.attendance_date <= filters.to_date)
+		.where(
+			Attendance.docstatus == 1
+		)
+		.where(
+			Attendance.attendance_date >= filters.from_date
+		)
+		.where(
+			Attendance.attendance_date <= filters.to_date
+		)
+
+		# -----------------------------------------------------
+		# IMPORTANT:
+		# Apply calculated Employee permission scope
+		# -----------------------------------------------------
+		.where(
+			Employee.name.isin(allowed_employee_names)
+		)
+
+		.where(
+			Employee.branch.isin(branch_values)
+		)
+
+		# Contract employees only
+		.where(
+			Employee.employment_type == "Contract"
+		)
+
 		.orderby(Attendance.attendance_date)
 		.orderby(Attendance.employee)
 	)
 
-	# Department alone is fine if the user supplied it (validated upstream).
-	# Branch+Ward: if only Ward(s) supplied -> resolve which branches to filter on.
-	# If Ward is empty but Branch is supplied -> use branches directly.
-	ward_values = _as_list(filters.get("ward"))
-	branch_values = _as_list(filters.get("branch"))
-	department_values = _as_list(filters.get("department"))
-
-	if ward_values and not branch_values:
-		resolved_branches = frappe.get_all(
-			"Branch",
-			filters={BRANCH_WARD_FIELD: ["in", ward_values]},
-			pluck="name",
-		)
-		if resolved_branches:
-			query = query.where(Employee.branch.isin(resolved_branches))
-		else:
-			# No branch matches the chosen ward(s) -> no data possible
-			return []
-	elif branch_values:
-		query = query.where(Employee.branch.isin(branch_values))
-
+	# ---------------------------------------------------------
+	# Department filter
+	# ---------------------------------------------------------
 	if department_values:
-		# Department options are already filtered on the client to branches
-		# belonging to selected ward(s)/org(s), so an IN clause is sufficient.
-		query = query.where(Employee.department.isin(department_values))
+		query = query.where(
+			Employee.department.isin(department_values)
+		)
 
 	return query.run(as_dict=True)
-
 
 def _strip_quotes(value):
 	"""Remove stray ASCII double-quotes wrapping a value.

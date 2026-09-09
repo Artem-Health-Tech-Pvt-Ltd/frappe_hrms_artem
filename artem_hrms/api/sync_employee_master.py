@@ -1,6 +1,5 @@
 import frappe
 
-# Extensible field map: HMIS master field name -> Employee doctype field name.
 FIELD_MAP = {
     "employment_type": "employment_type",
     "designation": "designation",
@@ -8,21 +7,35 @@ FIELD_MAP = {
     "branch": "branch",
 }
 
-# Fields whose values must match an existing master record.
 MASTER_LINK_FIELDS = {"designation", "department", "branch"}
 
-# HMIS-side labels -> Frappe Employment Type names.
 EMPLOYMENT_TYPE_ALIASES = {
     "permanent": "Full-time",
     "full-time": "Full-time",
     "fulltime": "Full-time",
     "contract": "Contract",
-    "contractual":"Contract"
+    "contractual": "Contract"
 }
 
 
+def _log_to_error_log(title, message, payload=None, reference_doctype=None, reference_name=None):
+    """Safely log messages and payloads into the Frappe Error Log Doctype (Desk UI)."""
+    try:
+        full_message = message
+        if payload is not None:
+            full_message += f"\n\n=== Payload ===\n{frappe.as_json(payload)}"
+
+        frappe.log_error(
+            title=title,
+            message=full_message,
+            reference_doctype=reference_doctype,
+            reference_name=reference_name
+        )
+    except Exception:
+        pass
+
+
 def generate_normalized_username(user_id_input):
-    """Matches the custom_login pattern for username/email generation."""
     username = str(user_id_input or "").replace("@bmcinternal.com", "")
     if "@" in username:
         username = username + "bmcinternal.com"
@@ -47,25 +60,15 @@ def _extract_updates(payload):
 
 
 def _resolve_employee_id(identifier):
-    """
-    Resolve identifier using the normalized custom_login pattern.
-    Checks:
-    1. Direct match on Employee Name (e.g., EMP-001)
-    2. Normalized username/email match in User Doctype -> Employee.user_id
-    3. Direct user_id match on Employee Doctype
-    """
     raw_id = (identifier or "").strip()
     if not raw_id:
         raise ValueError("username / employee ID is required")
 
-    # 1. Direct match on Employee primary key (e.g., EMP-001)
     if frappe.db.exists("Employee", raw_id):
         return raw_id
 
-    # Normalize user ID per your custom login pattern (e.g., 'Ultimas@123' -> 'Ultimas@123@bmcinternal.com')
     normalized_user = generate_normalized_username(raw_id)
 
-    # 2. Check if User exists by name or email with normalized string
     user_record = frappe.db.get_value(
         "User",
         {"name": normalized_user},
@@ -79,7 +82,6 @@ def _resolve_employee_id(identifier):
     )
 
     if user_record:
-        # Lookup Employee by user_id linked to User's email/name
         employee = frappe.db.get_value(
             "Employee",
             {"user_id": user_record.email or user_record.name},
@@ -88,16 +90,14 @@ def _resolve_employee_id(identifier):
         if employee:
             return employee
 
-    # 3. Direct match on Employee.user_id with normalized username
     employee = frappe.db.get_value("Employee", {"user_id": normalized_user}, "name")
     if employee:
         return employee
 
-    raise ValueError(f"No Employee found matching '{raw_id}' (normalized: '{normalized_user}')")
+    raise ValueError(f"User is not found. Please create this user with username: '{raw_id}'")
 
 
 def _resolve_master(doctype, value):
-    """Return the existing master name for `value` in `doctype`, or None if missing."""
     if value is None:
         return None
     candidate = str(value).strip()
@@ -123,11 +123,17 @@ def _resolve_master(doctype, value):
 @frappe.whitelist(allow_guest=True)
 def sync_employee_master(**kwargs):
     """Bulk-sync employee fields from the HMIS master website."""
-    # Force execution context to Administrator
     frappe.set_user("Administrator")
 
     payload = frappe.request.get_json(silent=True) or kwargs or {}
     updates = _extract_updates(payload)
+
+    # LOG TO DESK UI AT START: Log entire incoming payload immediately
+    _log_to_error_log(
+        title="Sync Employee Master: Payload Received",
+        message=f"Received payload containing {len(updates)} record(s) to process.",
+        payload=payload
+    )
 
     if not updates:
         frappe.throw("Payload must include a non-empty 'updates' array")
@@ -135,7 +141,15 @@ def sync_employee_master(**kwargs):
     total = len(updates)
     success = 0
     failed = 0
+
+    logs = []
     error_log = []
+
+    logs.append({
+        "step": "payload_received",
+        "message": f"Payload received successfully with {total} record(s) to process",
+        "payload": payload
+    })
 
     doctype_map = {
         "department": "Department",
@@ -148,6 +162,13 @@ def sync_employee_master(**kwargs):
         record_errors = []
         try:
             employee_id = _resolve_employee_id(username)
+
+            logs.append({
+                "step": "user_found",
+                "username": username,
+                "message": f"User/Employee found successfully: '{employee_id}'",
+                "employee_id": employee_id
+            })
 
             updates_to_apply = {}
             for source_field, target_field in FIELD_MAP.items():
@@ -185,25 +206,88 @@ def sync_employee_master(**kwargs):
             if not updates_to_apply:
                 raise ValueError("No supported fields supplied for update")
 
-            # ONLY THIS PART CHANGED TO FIX THE DATABASE ERROR SAFELY
             doc = frappe.get_doc("Employee", employee_id)
             doc.update(updates_to_apply)
             doc.save(ignore_permissions=True)
 
+            logs.append({
+                "step": "db_change_successful",
+                "username": username,
+                "employee_id": employee_id,
+                "message": f"Database update successful for Employee '{employee_id}'",
+                "updated_fields": updates_to_apply
+            })
+
+            # SUCCESS LOG (Desk UI): payload + confirmation that DB was updated
+            # and what values changed.
+            _log_to_error_log(
+                title=f"Sync Employee Master: DB update successful for '{username}'",
+                message=(
+                    f"Payload:\n{frappe.as_json(record, indent=2)}\n\n"
+                    f"DB update successful. Value changed to "
+                    f"{frappe.as_json(updates_to_apply, indent=2)}"
+                ),
+                payload=record,
+                reference_doctype="Employee",
+                reference_name=employee_id,
+            )
+
             if record_errors:
+                _log_to_error_log(
+                    title=f"Sync Employee Master: partial update for '{username}'",
+                    message="\n".join(record_errors),
+                    payload=record,
+                    reference_doctype="Employee",
+                    reference_name=employee_id,
+                )
                 error_log.append({
                     "username": username,
                     "status": "partial",
-                    "message": "; ".join(record_errors),
+                    "reason": "; ".join(record_errors),
+                    "payload": record
                 })
             success += 1
 
         except Exception as e:
             failed += 1
+            error_reason = str(e)
+
+            # Detect the user-not-found cases from _resolve_employee_id so the
+            # caller (and the Desk UI Error Log) gets an explicit, actionable
+            # message: create the user in HRMS first.
+            user_not_found = (
+                "User is not found" in error_reason
+                or "username / employee ID is required" in error_reason
+            )
+
+            if user_not_found:
+                error_reason_full = (
+                    f"{error_reason}\n\n"
+                    f"Action required: HRMS does not have a user for "
+                    f"'{username}'. Please create this user in HRMS before "
+                    f"retrying the sync."
+                )
+            else:
+                error_reason_full = error_reason
+
+            _log_to_error_log(
+                title=(
+                    f"Sync Employee Master: user not found - '{username}'"
+                    if user_not_found
+                    else f"Sync Employee Master: error for '{username}'"
+                ),
+                message=error_reason_full,
+                payload=record,
+                reference_doctype="User",
+                reference_name=username,
+            )
+
             error_log.append({
                 "username": username,
                 "status": "error",
-                "message": str(e),
+                "reason": error_reason_full,
+                "payload": record,
+                "user_not_found": user_not_found,
             })
 
     frappe.db.commit()
@@ -214,5 +298,6 @@ def sync_employee_master(**kwargs):
         "total": total,
         "success": success,
         "failed": failed,
-        "errors": error_log,
+        "logs": logs,
+        "error_log": error_log,
     }

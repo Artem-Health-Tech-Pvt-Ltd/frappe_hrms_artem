@@ -58,23 +58,33 @@ frappe.query_reports["Effective Attendance Report"] = {
 				ea_permitted_branches = [];
 			});
 
-		// Prominent top-right "Download Formatted Excel" button.
+		// Download Excel handler — shared by every button placement below.
+		const download_excel_handler = function () {
+			const filters = report.get_values();
+			const branches = get_ms_values("branch");
+			if (!branches.length) {
+				frappe.msgprint(__("Please select at least one Organization (Branch) first"));
+				return;
+			}
+			open_url_post(frappe.request.url, {
+				cmd: "artem_hrms.artem_hrms.report.effective_attendance_report.effective_attendance_report.download_excel",
+				filters: JSON.stringify(filters),
+			});
+		};
+
+		// 1) Primary action: prominent button on the page (top-right).
 		report.page.set_primary_action(
-			__("Download Formatted Excel"),
-			function () {
-				const filters = report.get_values();
-				const branches = get_ms_values("branch");
-				if (!branches.length) {
-					frappe.msgprint(__("Please select at least one Organization (Branch) first"));
-					return;
-				}
-				open_url_post(frappe.request.url, {
-					cmd: "artem_hrms.artem_hrms.report.effective_attendance_report.effective_attendance_report.download_excel",
-					filters: JSON.stringify(filters),
-				});
-			},
+			__("Download Excel"),
+			download_excel_handler,
 			null,
 			__("Downloading...")
+		);
+
+		// 2) Belt-and-braces: also surface it in the Actions dropdown so users
+		// can find it even if the primary action slot is hidden by a theme.
+		report.page.add_inner_button(
+			__("Download Excel"),
+			download_excel_handler
 		);
 	},
 

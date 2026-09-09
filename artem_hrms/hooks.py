@@ -189,7 +189,7 @@ fixtures = [
     {
         "dt": "Server Script",
         "filters": [
-            ["name", "=", "create_employee"]
+            ["name", "=", "get-attendance-dashboard-data"]
         ]
     }
 ]
