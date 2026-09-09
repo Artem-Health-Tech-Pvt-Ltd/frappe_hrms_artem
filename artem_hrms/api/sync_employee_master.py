@@ -218,6 +218,20 @@ def sync_employee_master(**kwargs):
                 "updated_fields": updates_to_apply
             })
 
+            # SUCCESS LOG (Desk UI): payload + confirmation that DB was updated
+            # and what values changed.
+            _log_to_error_log(
+                title=f"Sync Employee Master: DB update successful for '{username}'",
+                message=(
+                    f"Payload:\n{frappe.as_json(record, indent=2)}\n\n"
+                    f"DB update successful. Value changed to "
+                    f"{frappe.as_json(updates_to_apply, indent=2)}"
+                ),
+                payload=record,
+                reference_doctype="Employee",
+                reference_name=employee_id,
+            )
+
             if record_errors:
                 _log_to_error_log(
                     title=f"Sync Employee Master: partial update for '{username}'",
@@ -238,9 +252,31 @@ def sync_employee_master(**kwargs):
             failed += 1
             error_reason = str(e)
 
+            # Detect the user-not-found cases from _resolve_employee_id so the
+            # caller (and the Desk UI Error Log) gets an explicit, actionable
+            # message: create the user in HRMS first.
+            user_not_found = (
+                "User is not found" in error_reason
+                or "username / employee ID is required" in error_reason
+            )
+
+            if user_not_found:
+                error_reason_full = (
+                    f"{error_reason}\n\n"
+                    f"Action required: HRMS does not have a user for "
+                    f"'{username}'. Please create this user in HRMS before "
+                    f"retrying the sync."
+                )
+            else:
+                error_reason_full = error_reason
+
             _log_to_error_log(
-                title=f"Sync Employee Master: error for '{username}'",
-                message=error_reason,
+                title=(
+                    f"Sync Employee Master: user not found - '{username}'"
+                    if user_not_found
+                    else f"Sync Employee Master: error for '{username}'"
+                ),
+                message=error_reason_full,
                 payload=record,
                 reference_doctype="User",
                 reference_name=username,
@@ -249,8 +285,9 @@ def sync_employee_master(**kwargs):
             error_log.append({
                 "username": username,
                 "status": "error",
-                "reason": error_reason,
-                "payload": record
+                "reason": error_reason_full,
+                "payload": record,
+                "user_not_found": user_not_found,
             })
 
     frappe.db.commit()
