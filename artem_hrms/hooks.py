@@ -144,6 +144,7 @@ doctype_js = {
 
 doc_events = {
     "Employee": {
+        
         "validate": "artem_hrms.vendor_integration.employee_sync.ensure_attendance_device_id",
         "on_insert": "artem_hrms.vendor_integration.employee_sync.enqueue_employee_sync",
         "on_update": [
@@ -186,15 +187,9 @@ override_doctype_class = {
 
 fixtures = [
     {
-        "dt": "Custom HTML Block",
-        "filters": [
-            ["name", "in", ["Attendance-Table","Attendance-Dashboard"]]
-        ]
-    },
-    {
         "dt": "Server Script",
         "filters": [
-            ["name", "in", ["get_data_k","get-attendance-dashboard-data","checkin_restrict"]]
+            ["name", "=", "get-attendance-dashboard-data"]
         ]
     }
 ]

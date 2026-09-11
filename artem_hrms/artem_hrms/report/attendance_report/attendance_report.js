@@ -1,3 +1,4 @@
+//attendace_report.js
 // Copyright (c) 2026
 // Attendance Report - client side filters + grouped month header
 
@@ -28,10 +29,11 @@ frappe.query_reports["Attendance Report"] = {
 			label: __("Ward"),
 			fieldtype: "MultiSelectList",
 			get_data: function (txt) {
+				const branches = get_ms_values("branch");
 				return frappe
 					.xcall(
-						"artem_hrms.artem_hrms.report.attendance_report.attendance_report.get_ward_options",
-						{ txt: txt || "" }
+						"artem_hrms.artem_hrms.report.attendance_report.attendance_report.get_permitted_ward_options",
+						{ txt: txt || "", branches: branches }
 					)
 					.then((wards) =>
 						(wards || []).map((w) => ({ value: w, description: "" }))
@@ -46,7 +48,14 @@ frappe.query_reports["Attendance Report"] = {
 			label: __("Organization (Branch)"),
 			fieldtype: "MultiSelectList",
 			get_data: function (txt) {
-				return frappe.db.get_link_options("Branch", txt);
+				return frappe
+					.xcall(
+						"artem_hrms.artem_hrms.report.attendance_report.attendance_report.get_permitted_branch_options",
+						{ txt: txt || "" }
+					)
+					.then((branches) =>
+						(branches || []).map((b) => ({ value: b, description: "" }))
+					);
 			},
 			on_change: function () {
 				toggle_department_filter();
@@ -58,29 +67,49 @@ frappe.query_reports["Attendance Report"] = {
 			label: __("Department"),
 			fieldtype: "MultiSelectList",
 			get_data: function (txt) {
-				return frappe.db.get_link_options("Department", txt);
+				const branches = get_ms_values("branch");
+				return frappe
+					.xcall(
+						"artem_hrms.artem_hrms.report.attendance_report.attendance_report.get_permitted_department_options",
+						{ txt: txt || "", branches: branches }
+					)
+					.then((departments) =>
+						(departments || []).map((d) => ({ value: d, description: "" }))
+					);
 			},
 		},
 	],
 
 	onload: function (report) {
 		toggle_department_filter();
-		// Prominent top-right "Download Formatted Excel" button.
+
+		// Download Excel handler — shared by every button placement below.
+		const download_excel_handler = function () {
+			const filters = report.get_values();
+			const branches = get_ms_values("branch");
+			if (!branches.length) {
+				frappe.msgprint(__("Please select at least one Organization (Branch) first"));
+				return;
+			}
+			open_url_post(frappe.request.url, {
+				cmd: "artem_hrms.artem_hrms.report.attendance_report.attendance_report.download_excel",
+				filters: JSON.stringify(filters),
+			});
+		};
+
+		// 1) Primary action: prominent button on the page (top-right).
 		report.page.set_primary_action(
-			__("Download Formatted Excel"),
-			function () {
-				const filters = frappe.query_report.get_filter_values(true) || {};
-				if (!filters.from_date || !filters.to_date) {
-					frappe.msgprint(__("Please select a From Date and To Date first"));
-					return;
-				}
-				open_url_post(frappe.request.url, {
-					cmd: "artem_hrms.artem_hrms.report.attendance_report.attendance_report.download_excel",
-					filters: JSON.stringify(filters),
-				});
-			},
+			__("Download Excel"),
+			download_excel_handler,
 			null,
 			__("Downloading...")
+		);
+
+		// 2) Belt-and-braces: also surface it in the Actions dropdown so users
+		// can find it even if the primary action slot is hidden by a theme.
+		report.page.add_inner_button(
+			__("Download Excel"),
+			download_excel_handler
 		);
 	},
 
@@ -102,6 +131,13 @@ function toggle_department_filter() {
 		dept_filter.df.read_only = 1;
 	}
 	dept_filter.refresh_input();
+}
+
+function get_ms_values(fieldname) {
+	const v = frappe.query_report.get_filter_value(fieldname);
+	if (!v) return [];
+	if (Array.isArray(v)) return v;
+	return [v];
 }
 
 function validate_date_range() {
@@ -207,7 +243,7 @@ function inject_month_group_header(datatable) {
 		// Reserve the same horizontal space as the identity columns (sr_no + ward + branch + employee + employee_name + department + designation = 7)
 		// by adding a left spacer that matches those columns' widths in flex.
 		const spacer = document.createElement("div");
-		spacer.style.cssText = "flex:0 0 auto; min-width:710px;"; // matches sum of prefix column widths (60+100+140+110+160+130+110)
+		spacer.style.cssText = "flex:0 0 auto; min-width:650px;"; // matches sum of prefix column widths (100+140+110+160+130+110)
 		overlay.appendChild(spacer);
 
 		groups.forEach((g) => {

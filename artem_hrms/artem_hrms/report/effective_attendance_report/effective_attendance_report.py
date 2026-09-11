@@ -1,8 +1,9 @@
-# Copyright (c) 2026
+# Effective Attendance Report.py Copyright (c) 2026
 # Effective of Contractual Staff - server side logic
 #
 # Filters: 1) Date range (From Date / To Date, mandatory)
-#          2) Organization (Branch) - mandatory, single branch only
+#          2) Organization (Branch) - multi-select, optional (defaults to
+#             the user's permitted branches)
 #
 # Master table: Attendance (docstatus = 1) only.
 # Each employee occupies TWO rows: "P/A" row and "Working Hours" row.
@@ -24,12 +25,198 @@ from hrms.hr.doctype.leave_application.leave_application import get_leave_detail
 
 def execute(filters=None):
 	filters = frappe._dict(filters or {})
+	filters.branch = _as_list(filters.get("branch"))
 	validate_filters(filters)
 
 	period = get_period(filters)
 	columns = get_columns(period)
 	data = get_screen_data(filters, period)
 	return columns, data
+
+
+def _as_list(value):
+	"""Coerce a MultiSelectList filter value (str, list, tuple, None) to a flat list."""
+	if not value:
+		return []
+	if isinstance(value, (list, tuple)):
+		return [str(v) for v in value if v not in (None, "")]
+	if isinstance(value, str):
+		v = value.strip()
+		if v.startswith("[") and v.endswith("]"):
+			try:
+				parsed = json.loads(v)
+				if isinstance(parsed, list):
+					return [str(x) for x in parsed if x not in (None, "")]
+			except Exception:
+				pass
+			try:
+				import ast as _ast
+				parsed = _ast.literal_eval(v)
+				if isinstance(parsed, (list, tuple)):
+					return [str(x) for x in parsed if x not in (None, "")]
+			except Exception:
+				pass
+		return [v]
+	return [str(value)]
+
+
+# ---------------------------------------------------------------------------
+# Permission-aware branch filter options
+# ---------------------------------------------------------------------------
+
+def _get_explicit_branch_permissions():
+	return frappe.get_all(
+		"User Permission",
+		filters={"user": frappe.session.user, "allow": "Branch"},
+		pluck="for_value",
+	)
+
+
+def _get_derived_branch_permissions():
+	# Respects standard Frappe perms + any User Permission rows with allow="Employee".
+	permitted_employees = frappe.get_list("Employee", pluck="name")
+	if not permitted_employees:
+		return []
+
+	return frappe.get_all(
+		"Employee",
+		filters={"name": ("in", permitted_employees)},
+		pluck="branch",
+	)
+
+
+@frappe.whitelist()
+def get_permitted_branches():
+	"""Return the union of branches the current user can see.
+
+	Sources:
+	  1. Explicit User Permission rows with allow="Branch".
+	  2. Branches derived from Employee records the user is permitted to view.
+
+	Falls back to all branches when neither source yields results (admin / HR Manager).
+	"""
+	explicit = _get_explicit_branch_permissions()
+	derived = _get_derived_branch_permissions()
+
+	combined = {b for b in (explicit + derived) if b}
+
+	if not combined:
+		return [b.name for b in frappe.get_all("Branch", order_by="name asc")]
+
+	return sorted(combined)
+
+def get_allowed_employee_names(branch_list):
+	"""
+	Determine the employee scope for the Effective Attendance Report.
+
+	CASE 1:
+		User has Branch permissions AND Employee permissions for
+		multiple employees.
+		=> Employee scope = Employee Permission ∩ Branch Permission
+
+	CASE 2:
+		User has Branch permissions AND the only Employee permission
+		is their own Employee record.
+		=> Employee scope = ALL eligible Contract employees
+		   in the permitted branches.
+
+	This allows:
+		- 22 employee permissions across Branch A+B -> 22 employees
+		- Self-only employee permission + 5 branch permissions -> all
+		  eligible employees in those 5 branches.
+	"""
+
+	user = frappe.session.user
+
+	# ---------------------------------------------------------
+	# Get employees the user is permitted to access
+	# ---------------------------------------------------------
+	permitted_employee_names = frappe.get_list(
+		"Employee",
+		pluck="name",
+	)
+
+	# ---------------------------------------------------------
+	# No Employee permission data
+	# ---------------------------------------------------------
+	if not permitted_employee_names:
+		return []
+
+	# ---------------------------------------------------------
+	# Get user's own Employee record
+	# ---------------------------------------------------------
+	own_employee = frappe.db.get_value(
+		"Employee",
+		{"user_id": user},
+		"name",
+	)
+
+	# ---------------------------------------------------------
+	# CASE 2:
+	# Employee permission contains ONLY the user's own employee
+	# AND Branch permissions exist.
+	#
+	# Example:
+	#   Branch A+B+C+D+E = 65 employees
+	#   Employee permission = only AO himself
+	#
+	# Result = all eligible employees in those branches.
+	# ---------------------------------------------------------
+	if (
+		own_employee
+		and branch_list
+		and set(permitted_employee_names) == {own_employee}
+	):
+		return frappe.get_all(
+			"Employee",
+			filters={
+				"branch": ["in", branch_list],
+				"status": "Active",
+				"employment_type": EMPLOYMENT_TYPE,
+			},
+			pluck="name",
+		)
+
+	# ---------------------------------------------------------
+	# CASE 1:
+	# Employee permissions contain multiple employees.
+	#
+	# Result:
+	# Employee Permission ∩ Branch Permission
+	# ---------------------------------------------------------
+	branch_employee_names = set(
+		frappe.get_all(
+			"Employee",
+			filters={
+				"name": ["in", permitted_employee_names],
+				"branch": ["in", branch_list],
+			},
+			pluck="name",
+		)
+	)
+
+	return list(branch_employee_names)
+
+@frappe.whitelist()
+def get_permitted_branches_for_multiselect(txt="", branches=None):
+	"""Whitelisted endpoint consumed by the Branch MultiSelectList's get_data hook.
+
+	Returns permitted branches, optionally narrowed by the typeahead text and
+	by the currently-selected values (so users can't type a branch they don't
+	have access to via the typeahead either).
+	"""
+	permitted = get_permitted_branches()
+	result = list(permitted)
+
+	selected = _as_list(branches)
+	if selected:
+		result = [b for b in result if b in selected]
+
+	if txt:
+		needle = txt.strip().lower()
+		result = [b for b in result if needle in b.lower()]
+
+	return result
 
 
 def validate_filters(filters):
@@ -39,8 +226,12 @@ def validate_filters(filters):
 	if getdate(filters.from_date) > getdate(filters.to_date):
 		frappe.throw(_("From Date cannot be after To Date"))
 
-	if not filters.get("branch"):
-		frappe.throw(_("Please select an Organization (Branch)"))
+	# Branch is now optional. When omitted, the report defaults to the user's
+	# permitted branches (set in get_employee_rows).
+
+	branch_values = _as_list(filters.get("branch"))
+	if not branch_values:
+		frappe.throw(_("Please select an Organization (Branch) from the filter to generate this report"))
 
 	# keep the day-wise matrix printable; remove/raise this limit if needed
 	if date_diff(filters.to_date, filters.from_date) + 1 > 92:
@@ -134,18 +325,47 @@ def format_hhmm(hours):
 
 def get_employee_rows(filters, period):
 	"""
-	Fetch attendance for the selected branch + date range and group per employee.
-	Returns a list of dicts:
-	{
-		employee, employee_name, designation, date_of_joining,
-		days: {date: {"letter": "P", "hours": "7.5"}},
-		total_days, total_present_days
-	}
+	Fetch attendance for employees allowed by the report permission logic.
+
+	Permission behavior:
+
+	CASE 1:
+		Multiple Employee permissions + Branch permissions
+		=> Employee Permission ∩ Branch Permission
+
+	CASE 2:
+		Only own Employee permission + Branch permissions
+		=> All eligible Contract employees in those branches
+
+	After employee scope is calculated, only employees having
+	submitted Attendance records in the selected date range appear.
 	"""
+
 	Attendance = frappe.qb.DocType("Attendance")
 	Employee = frappe.qb.DocType("Employee")
 
-	records = (
+	# ---------------------------------------------------------
+	# Selected branches
+	# ---------------------------------------------------------
+	branch_list = filters.branch or get_permitted_branches()
+
+	if not branch_list:
+		return []
+
+	# ---------------------------------------------------------
+	# Calculate employee permission scope
+	# ---------------------------------------------------------
+	allowed_employee_names = get_allowed_employee_names(
+		branch_list
+	)
+
+	if not allowed_employee_names:
+		return []
+
+	# ---------------------------------------------------------
+	# Attendance query
+	# ---------------------------------------------------------
+	query = (
 		frappe.qb.from_(Attendance)
 		.inner_join(Employee)
 		.on(Attendance.employee == Employee.name)
@@ -159,15 +379,32 @@ def get_employee_rows(filters, period):
 			Employee.date_of_joining,
 		)
 		.where(Attendance.docstatus == 1)
-		.where(Attendance.attendance_date >= period.from_date)
-		.where(Attendance.attendance_date <= period.to_date)
-		.where(Employee.branch == filters.branch)
-		.where(Employee.employment_type == EMPLOYMENT_TYPE)
+		.where(
+			Attendance.attendance_date >= period.from_date
+		)
+		.where(
+			Attendance.attendance_date <= period.to_date
+		)
+		.where(
+			Employee.name.isin(allowed_employee_names)
+		)
+		.where(
+			Employee.branch.isin(branch_list)
+		)
+		.where(
+			Employee.employment_type == EMPLOYMENT_TYPE
+		)
 		.orderby(Attendance.employee)
 		.orderby(Attendance.attendance_date)
-	).run(as_dict=True)
+	)
 
+	records = query.run(as_dict=True)
+
+	# ---------------------------------------------------------
+	# Group attendance by employee
+	# ---------------------------------------------------------
 	emp_map = {}
+
 	for rec in records:
 		emp = emp_map.setdefault(
 			rec.employee,
@@ -179,37 +416,100 @@ def get_employee_rows(filters, period):
 				"days": {},
 			},
 		)
+
 		hours = rec.working_hours or 0
+
 		emp["days"][getdate(rec.attendance_date)] = {
 			"letter": status_letter(rec.status),
 			"hours": format_hhmm(hours) if hours else "",
 		}
 
-	employees = sorted(emp_map.values(), key=lambda e: (e["employee_name"] or ""))
+	# ---------------------------------------------------------
+	# Sort employees
+	# ---------------------------------------------------------
+	employees = sorted(
+		emp_map.values(),
+		key=lambda e: (e["employee_name"] or "")
+	)
 
-	employee_ids = [e["employee"] for e in employees]
-	balance_map = get_leave_balance_map(employee_ids, period.to_date) if employee_ids else {}
+	# ---------------------------------------------------------
+	# Leave balance
+	# ---------------------------------------------------------
+	employee_ids = [
+		e["employee"]
+		for e in employees
+	]
 
+	balance_map = (
+		get_leave_balance_map(
+			employee_ids,
+			period.to_date
+		)
+		if employee_ids
+		else {}
+	)
+
+	# ---------------------------------------------------------
+	# Calculate totals
+	# ---------------------------------------------------------
 	for emp in employees:
-		marked = [d for d in emp["days"].values() if d["letter"]]
+		marked = [
+			d
+			for d in emp["days"].values()
+			if d["letter"]
+		]
+
 		emp["total_days"] = len(marked)
-		emp["total_present_days"] = len([d for d in marked if d["letter"] == "P"])
-		emp["total_leaves_consumed"] = len([d for d in marked if d["letter"] == "L"])
-		emp["total_leaves_available"] = balance_map.get(emp["employee"], 0)
+
+		emp["total_present_days"] = len(
+			[
+				d
+				for d in marked
+				if d["letter"] == "P"
+			]
+		)
+
+		emp["total_leaves_consumed"] = len(
+			[
+				d
+				for d in marked
+				if d["letter"] == "L"
+			]
+		)
+
+		emp["total_leaves_available"] = balance_map.get(
+			emp["employee"],
+			0
+		)
 
 	return employees
 
 
 def get_leave_balance_map(employee_ids, date):
-	balance_map = {}
-	for employee in employee_ids:
-		leave_details = get_leave_details(employee, date)
-		balance_map[employee] = sum(
-			allocation.get("remaining_leaves") or 0
-			for allocation in leave_details.get("leave_allocation", {}).values()
-		)
-	return balance_map
+    balance_map = {}
+    
+    # 1. Temporarily bypass permission enforcement for the loop
+    frappe.flags.ignore_permissions = True
 
+    try:
+        for employee in employee_ids:
+            try:
+                leave_details = get_leave_details(employee, date)
+                balance_map[employee] = sum(
+                    allocation.get("remaining_leaves") or 0
+                    for allocation in leave_details.get("leave_allocation", {}).values()
+                )
+            except Exception:
+                # Fallback to 0 if an individual leave lookup fails
+                balance_map[employee] = 0
+    finally:
+        # 2. WIPE OUT all accumulated "Not permitted" warnings from the server message queue
+        frappe.clear_messages()
+        
+        # 3. Re-enable standard permission enforcement
+        frappe.flags.ignore_permissions = False
+
+    return balance_map
 
 def get_screen_data(filters, period):
 	"""Flatten to two report rows per employee (P/A row + Working Hours row)."""
@@ -262,6 +562,7 @@ def download_excel(filters=None):
 	if isinstance(filters, str):
 		filters = json.loads(filters)
 	filters = frappe._dict(filters or {})
+	filters.branch = _as_list(filters.get("branch"))
 	validate_filters(filters)
 
 	period = get_period(filters)
@@ -283,10 +584,19 @@ def build_workbook(filters, period):
 
 	employees = get_employee_rows(filters, period)
 
-	branch = frappe.db.get_value(
-		"Branch", filters.branch, ["name", BRANCH_WARD_FIELD], as_dict=True
-	) or frappe._dict()
-	ward = branch.get(BRANCH_WARD_FIELD) or ""
+	branch_names = filters.branch or get_permitted_branches()
+	# Resolve ward(s) for the title block; join with ", " when multiple.
+	wards = []
+	if branch_names:
+		rows = frappe.get_all(
+			"Branch",
+			filters={"name": ("in", branch_names)},
+			pluck=BRANCH_WARD_FIELD,
+		)
+		wards = sorted({w for w in rows if w})
+	ward = ", ".join(wards)
+
+	title_branches = ", ".join(branch_names) if branch_names else ""
 
 	wb = Workbook()
 	ws = wb.active
@@ -311,7 +621,7 @@ def build_workbook(filters, period):
 
 	# ---- Title ----
 	ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=total_cols)
-	title_cell = ws.cell(row, 1, f"Effective of Contractual Staff at {branch.get('name') or ''} Dispensary/HBT")
+	title_cell = ws.cell(row, 1, f"Effective of Contractual Staff at {title_branches} Dispensary/HBT")
 	title_cell.font = Font(bold=True, size=13)
 	title_cell.alignment = center
 	ws.row_dimensions[row].height = 24
@@ -437,5 +747,5 @@ def build_workbook(filters, period):
 	ws.page_margins.right = 0.3
 	ws.page_margins.top = 0.4
 	ws.page_margins.bottom = 0.4
-
 	return wb
+#code

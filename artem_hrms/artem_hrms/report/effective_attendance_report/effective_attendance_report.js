@@ -1,3 +1,6 @@
+// Effective Attendance Report.js Cache the current user's permitted branches so the multi-select dropdown
+// can pre-select all of them by default and so the get_data xcall stays cheap.
+let ea_permitted_branches = null;
 
 frappe.query_reports["Effective Attendance Report"] = {
 	filters: [
@@ -16,32 +19,72 @@ frappe.query_reports["Effective Attendance Report"] = {
 			reqd: 1,
 		},
 		{
-			// Single branch only - report runs for exactly one selected branch
+			// Multi-select branch filter. Options are restricted at runtime to
+			// branches the logged-in user is permitted to view. When left
+			// empty, the report defaults to all permitted branches server-side.
 			fieldname: "branch",
 			label: __("Organization (Branch)"),
-			fieldtype: "Link",
-			options: "Branch",
-			reqd: 1,
+			fieldtype: "MultiSelectList",
+			get_data: function (txt) {
+				const selected = get_ms_values("branch");
+				return frappe
+					.xcall(
+						"artem_hrms.artem_hrms.report.effective_attendance_report.effective_attendance_report.get_permitted_branches_for_multiselect",
+						{ txt: txt || "", branches: selected }
+					)
+					.then((branches) =>
+						(branches || []).map((b) => ({ value: b, description: "" }))
+					);
+			},
 		},
 	],
 
 	onload: function (report) {
-		// Prominent top-right "Download Formatted Excel" button.
-		report.page.set_primary_action(
-			__("Download Formatted Excel"),
-			function () {
-				const filters = report.get_values();
-				if (!filters || !filters.branch) {
-					frappe.msgprint(__("Please select an Organization (Branch) first"));
-					return;
+		// Prefetch permitted branches once per report load. On failure, leave
+		// the cache as an empty list (the Python-side default will then fall
+		// back to all branches, matching admin behavior).
+		frappe.xcall(
+			"artem_hrms.artem_hrms.report.effective_attendance_report.effective_attendance_report.get_permitted_branches"
+		)
+			.then((branches) => {
+				ea_permitted_branches = Array.isArray(branches) ? branches : [];
+				// Pre-select every permitted branch so the report shows all of
+				// them by default; the user can then narrow further.
+				if (ea_permitted_branches.length) {
+					frappe.query_report.set_filter_value("branch", ea_permitted_branches);
 				}
-				open_url_post(frappe.request.url, {
-					cmd: "artem_hrms.artem_hrms.report.effective_attendance_report.effective_attendance_report.download_excel",
-					filters: JSON.stringify(filters),
-				});
-			},
+			})
+			.catch(() => {
+				ea_permitted_branches = [];
+			});
+
+		// Download Excel handler — shared by every button placement below.
+		const download_excel_handler = function () {
+			const filters = report.get_values();
+			const branches = get_ms_values("branch");
+			if (!branches.length) {
+				frappe.msgprint(__("Please select at least one Organization (Branch) first"));
+				return;
+			}
+			open_url_post(frappe.request.url, {
+				cmd: "artem_hrms.artem_hrms.report.effective_attendance_report.effective_attendance_report.download_excel",
+				filters: JSON.stringify(filters),
+			});
+		};
+
+		// 1) Primary action: prominent button on the page (top-right).
+		report.page.set_primary_action(
+			__("Download Excel"),
+			download_excel_handler,
 			null,
 			__("Downloading...")
+		);
+
+		// 2) Belt-and-braces: also surface it in the Actions dropdown so users
+		// can find it even if the primary action slot is hidden by a theme.
+		report.page.add_inner_button(
+			__("Download Excel"),
+			download_excel_handler
 		);
 	},
 
@@ -49,6 +92,24 @@ frappe.query_reports["Effective Attendance Report"] = {
 		inject_month_group_header_effective(datatable);
 	},
 };
+
+function get_ms_values(fieldname) {
+	const v = frappe.query_report.get_filter_value(fieldname);
+	if (!v) return [];
+	if (Array.isArray(v)) return v.filter(Boolean);
+	if (typeof v === "string") {
+		if (v.startsWith("[") && v.endsWith("]")) {
+			try {
+				const parsed = JSON.parse(v);
+				if (Array.isArray(parsed)) return parsed.filter(Boolean);
+			} catch (e) {
+				/* fallthrough */
+			}
+		}
+		return v ? [v] : [];
+	}
+	return [];
+}
 
 // ---------------------------------------------------------------------------
 // Grouped month header overlay (mirrors Attendance Report styling)
@@ -145,3 +206,4 @@ function inject_month_group_header_effective(datatable) {
 		console.warn("month-group-header (effective) failed", e);
 	}
 }
+//code
