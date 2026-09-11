@@ -1,3 +1,4 @@
+#attendace_report.py
 # Copyright (c) 2026
 # Attendance Report - server side logic
 #
@@ -27,7 +28,6 @@ from frappe.utils import add_days, formatdate, getdate
 # populated after every filter (date / ward / branch / department) so the
 # on-screen table and the Excel download share the same sequential index.
 PREFIX_COLUMNS = (
-	{"label": _("Sr. No."), "fieldname": "sr_no", "fieldtype": "Int", "width": 60},
 	{"label": _("Ward"), "fieldname": "ward", "fieldtype": "Data", "width": 100},
 	{"label": _("Organization"), "fieldname": "branch", "fieldtype": "Link", "options": "Branch", "width": 140},
 	{"label": _("Employee ID"), "fieldname": "employee", "fieldtype": "Link", "options": "Employee", "width": 110},
@@ -92,6 +92,9 @@ def validate_filters(filters):
 	if filters.department and not filters.branch:
 		frappe.throw(_("Please select at least one Organization (Branch) before filtering by Department"))
 
+	if not filters.branch and not filters.ward:
+		frappe.throw(_("Please select a Ward or Organization (Branch) from the filter to generate this report"))
+
 	# Cap the range to avoid pathological column counts (mirrors the JS 90-day check).
 	from frappe.utils import date_diff
 	if date_diff(filters.to_date, filters.from_date) > 90:
@@ -139,10 +142,121 @@ def day_value(status, leave_type):
 	return ""
 
 
+# ---------------------------------------------------------------------------
+# Permission helpers (used by both the report and the filter-option endpoints)
+# ---------------------------------------------------------------------------
+
+def _get_explicit_branch_permissions():
+	return frappe.get_all(
+		"User Permission",
+		filters={"user": frappe.session.user, "allow": "Branch"},
+		pluck="for_value",
+	)
+
+
+def _get_derived_branch_permissions():
+	# Respects standard Frappe perms + any User Permission rows with allow="Employee".
+	permitted_employees = frappe.get_list("Employee", pluck="name")
+	if not permitted_employees:
+		return []
+
+	return frappe.get_all(
+		"Employee",
+		filters={"name": ("in", permitted_employees)},
+		pluck="branch",
+	)
+
+
+def _get_permitted_branches():
+	"""Return the union of branches the current user can see.
+
+	Returns None when no permission rows exist (admin fallback — caller should
+	use all branches). Returns a sorted list otherwise.
+	"""
+	explicit = _get_explicit_branch_permissions()
+	derived = _get_derived_branch_permissions()
+
+	combined = {b for b in (explicit + derived) if b}
+
+	if not combined:
+		return None
+
+	return sorted(combined)
+
+
+def _as_list(value):
+	if not value:
+		return []
+	if isinstance(value, str):
+		value = frappe.parse_json(value)
+	return value or []
+
+
+def get_allowed_employee_names(branch_list):
+	"""Return employee names the current user can see, restricted to branch_list.
+
+	Uses `frappe.get_list` so standard Frappe perms and any User Permission
+	rows with allow="Employee" are respected. Only Active + Contract employees
+	are returned, matching the WHERE clauses added in `get_attendance_records`.
+	"""
+	if not branch_list:
+		return []
+
+	rows = frappe.get_list(
+		"Employee",
+		filters={
+			"branch": ("in", branch_list),
+			"status": "Active",
+			"employment_type": "Contract",
+		},
+		pluck="name",
+	)
+	return rows or []
+
+
+# ---------------------------------------------------------------------------
+# Data fetching
+# ---------------------------------------------------------------------------
+
 def get_attendance_records(filters):
 	Attendance = frappe.qb.DocType("Attendance")
 	Employee = frappe.qb.DocType("Employee")
 	Branch = frappe.qb.DocType("Branch")
+
+	# Determine permitted branches
+	permitted_branches = _get_permitted_branches()
+	if permitted_branches is None:
+		# No explicit permission restriction -> all branches
+		permitted_branches = [
+			b.name for b in frappe.get_all("Branch", order_by="name asc")
+		]
+
+	# Apply selected Branch filter (intersect with permissions)
+	if filters.branch:
+		branch_list = [b for b in filters.branch if b in permitted_branches]
+	else:
+		branch_list = permitted_branches
+
+	# Apply Ward filter (ward -> branches)
+	if filters.ward:
+		ward_branches = frappe.get_all(
+			"Branch",
+			filters={
+				BRANCH_WARD_FIELD: ["in", filters.ward],
+				"name": ["in", branch_list],
+			},
+			pluck="name",
+		)
+		branch_list = [b for b in branch_list if b in ward_branches]
+
+	# No branch remains after permission/filter intersection
+	if not branch_list:
+		return []
+
+	# Allowed employees (perm-filtered via frappe.get_list, then narrowed to branch_list)
+	allowed_employee_names = get_allowed_employee_names(branch_list)
+	if not allowed_employee_names:
+		return []
 
 	query = (
 		frappe.qb.from_(Attendance)
@@ -164,14 +278,14 @@ def get_attendance_records(filters):
 		.where(Attendance.docstatus == 1)
 		.where(Attendance.attendance_date >= filters.from_date)
 		.where(Attendance.attendance_date <= filters.to_date)
+		.where(Employee.name.isin(allowed_employee_names))
+		.where(Employee.branch.isin(branch_list))
+		.where(Employee.status == "Active")
+		.where(Employee.employment_type == "Contract")
 		.orderby(Attendance.employee)
 		.orderby(Attendance.attendance_date)
 	)
 
-	if filters.branch:
-		query = query.where(Employee.branch.isin(filters.branch))
-	if filters.ward:
-		query = query.where(Branch[BRANCH_WARD_FIELD].isin(filters.ward))
 	if filters.department:
 		query = query.where(Employee.department.isin(filters.department))
 
@@ -208,9 +322,8 @@ def get_data(filters, dates):
 	groups = sorted(grouped.values(), key=lambda g: (g["employee_name"] or "", g["employee"]))
 
 	data = []
-	for sr_no, group in enumerate(groups, start=1):
+	for group in groups:
 		row = {
-			"sr_no": sr_no,
 			"ward": _strip_quotes(group["ward"]),
 			"branch": _strip_quotes(group["branch"]),
 			"employee": _strip_quotes(group["employee"]),
@@ -245,6 +358,10 @@ def get_data(filters, dates):
 
 	return data
 
+
+# ---------------------------------------------------------------------------
+# Excel export
+# ---------------------------------------------------------------------------
 
 @frappe.whitelist()
 def download_excel(filters=None):
@@ -298,7 +415,6 @@ def download_excel(filters=None):
 		"January", "February", "March", "April", "May", "June",
 		"July", "August", "September", "October", "November", "December",
 	]
-
 	# ---- Row 1: merged header groups ----
 	# - Identity columns (1..prefix_count) merged into one "Employee" cell.
 	# - Day columns merged by month into one coloured cell per month.
@@ -381,10 +497,23 @@ def download_excel(filters=None):
 	frappe.local.response.type = "binary"
 
 
+# ---------------------------------------------------------------------------
+# Filter option endpoints (called by the JS via frappe.xcall)
+# ---------------------------------------------------------------------------
+
 @frappe.whitelist()
 def get_ward_options(txt=""):
-	"""Distinct ward values from Branch, for the Ward MultiSelectList filter."""
-	filters = {}
+	"""Distinct ward values from Branch, for the Ward MultiSelectList filter.
+
+	Restricted to wards belonging to branches the current user is permitted to view.
+	"""
+	permitted_branches = _get_permitted_branches()
+	if permitted_branches is not None:
+		branches = permitted_branches
+	else:
+		branches = [b.name for b in frappe.get_all("Branch", order_by="name asc")]
+
+	filters = {"name": ("in", branches)}
 	if txt:
 		filters[BRANCH_WARD_FIELD] = ["like", f"%{txt}%"]
 
@@ -395,3 +524,84 @@ def get_ward_options(txt=""):
 		distinct=True,
 	)
 	return sorted({w for w in wards if w})
+
+
+@frappe.whitelist()
+def get_permitted_branch_options(txt="", branches=None):
+	"""Branches the current user is permitted to view, filtered by typeahead.
+
+	`branches` is the currently-selected Branch filter values; if provided, only
+	branches in the permitted set are returned (so users can't select a branch
+	they don't have access to via the typeahead either).
+	"""
+	permitted = _get_permitted_branches()
+	if permitted is None:
+		permitted = [b.name for b in frappe.get_all("Branch", order_by="name asc")]
+
+	result = permitted
+
+	selected = _as_list(branches)
+	if selected:
+		result = [b for b in result if b in selected]
+
+	if txt:
+		needle = txt.strip().lower()
+		result = [b for b in result if needle in b.lower()]
+
+	return result
+
+
+@frappe.whitelist()
+def get_permitted_ward_options(txt="", branches=None):
+	"""Wards derived from permitted branches, filtered by typeahead and any
+	currently-selected branches."""
+	permitted_branches = _get_permitted_branches()
+	if permitted_branches is None:
+		permitted_branches = [b.name for b in frappe.get_all("Branch", order_by="name asc")]
+
+	selected = _as_list(branches)
+	scope_branches = [b for b in permitted_branches if not selected or b in selected]
+
+	if not scope_branches:
+		return []
+
+	filters = {"name": ("in", scope_branches)}
+	if txt:
+		filters[BRANCH_WARD_FIELD] = ["like", f"%{txt}%"]
+
+	wards = frappe.get_all(
+		"Branch",
+		filters=filters,
+		pluck=BRANCH_WARD_FIELD,
+		distinct=True,
+	)
+	return sorted({w for w in wards if w})
+
+
+@frappe.whitelist()
+def get_permitted_department_options(txt="", branches=None):
+	"""Departments derived from permitted employees, optionally narrowed by the
+	currently-selected branches."""
+	permitted_employees = frappe.get_list("Employee", pluck="name")
+	if not permitted_employees:
+		return [d.name for d in frappe.get_all("Department", order_by="name asc")]
+
+	emp_filters = {"name": ("in", permitted_employees)}
+	selected = _as_list(branches)
+	if selected:
+		emp_filters["branch"] = ("in", selected)
+
+	departments = frappe.get_all(
+		"Employee",
+		filters=emp_filters,
+		pluck="department",
+		distinct=True,
+	)
+
+	result = sorted({d for d in departments if d})
+
+	if txt:
+		needle = txt.strip().lower()
+		result = [d for d in result if needle in d.lower()]
+
+	return result
