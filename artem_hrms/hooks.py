@@ -46,7 +46,8 @@ app_include_js = [
 # include js in doctype views
 doctype_js = {
     "Employee": "public/js/employee.js",
-    "HR Settings": "public/js/hr_settings.js"
+    "HR Settings": "public/js/hr_settings.js",
+    "Employee Checkin": "public/js/employee_checkin.js",
 }
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
@@ -153,7 +154,8 @@ doc_events = {
         ],
     },
     "Employee Checkin": {
-        "validate": "artem_hrms.doc_events.employee_checkin.employee_validation"
+        "validate": "artem_hrms.doc_events.employee_checkin.employee_validation",
+        "before_insert": "artem_hrms.doc_events.employee_checkin.restrict_web_checkin",
     }
 }
 
