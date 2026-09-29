@@ -27,6 +27,7 @@ add_to_apps_screen = [
 app_include_css = []
 app_include_js = [
     "/assets/artem_hrms/js/redirect_bmc_hrms.js",
+    "/assets/artem_hrms/js/filter_operator.js"
 ]
 
 # include js, css files in header of web template
@@ -48,6 +49,10 @@ doctype_js = {
     "Employee": "public/js/employee.js",
     "HR Settings": "public/js/hr_settings.js"
 }
+doctype_list_js = {
+    "Employee Checkin": "public/js/employee_checkin_list.js"
+}
+
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
