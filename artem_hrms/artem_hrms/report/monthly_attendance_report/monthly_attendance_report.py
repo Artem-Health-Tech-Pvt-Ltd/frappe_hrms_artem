@@ -109,6 +109,13 @@ def get_message() -> str:
 def get_columns(filters: Filters) -> list[dict]:
 	columns = []
 
+	# Sr. No. lives at position 1 so it's visible without scrolling. It is
+	# populated AFTER every filter (see `get_data`) so the on-screen table and
+	# the Excel download share the same sequential index.
+	columns.append(
+		{"label": _("Sr. No."), "fieldname": "sr_no", "fieldtype": "Int", "width": 60}
+	)
+
 	if filters.group_by:
 		options_mapping = {
 			"Branch": "Branch",
@@ -320,10 +327,23 @@ def get_data(filters: Filters, attendance_map: dict) -> list[dict]:
 
 			if records:
 				data.append({group_by_column: value})
+				# spacer rows ({group_by: value}) intentionally have no
+				# sr_no key -> the cell stays blank
+				for r in records:
+					r["sr_no"] = None
 				data.extend(records)
 
 	else:
 		data = get_rows(employee_details, filters, employee_holiday_map, attendance_map)
+
+	# Sr. No.: sequential index assigned after every filter, only to rows
+	# that actually represent an employee. Group-by spacer rows are skipped
+	# so the visible numbers run 1..N contiguously per group.
+	sr_no = 0
+	for row in data:
+		if row.get("employee") or row.get("employee_name"):
+			sr_no += 1
+			row["sr_no"] = sr_no
 
 	return data
 
