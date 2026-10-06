@@ -13,29 +13,7 @@ except ImportError:
         enqueue_at = None
 
 from . import api
-from .constants import BRANCH_MAP
-
-MAX_429_RETRIES = 3
-RETRY_DELAY_SECONDS = 60
-
-PENDING = "Pending"
-SYNCED = "Synced"
-FAILED = "Failed"
-
-API_FIELDS = (
-    "attendance_device_id",
-    "employee_name",
-    "first_name",
-    "last_name",
-    "gender",
-    "date_of_birth",
-    "date_of_joining",
-    "branch",
-    "department",
-    "designation",
-    "cell_number",
-    "personal_email",
-)
+from .constants import FAILED, MAX_429_RETRIES, PENDING, RETRY_DELAY_SECONDS, SYNCED
 
 
 def ensure_attendance_device_id(doc, method):
@@ -53,18 +31,21 @@ def enqueue_employee_sync(doc, method):
     """on_insert / on_update hook: enqueue background sync job.
     - Always syncs on create.
     - On update, syncs only if an API-relevant field changed since the last save.
-    - Skips silently if no relevant change (saves an API call)."""
+    - Skips silently if no vendor is mapped or no relevant change."""
     if frappe.flags.in_migrate or frappe.flags.in_install or frappe.flags.in_patch:
         return
-    if not _is_branch_allowed(doc.branch):
+
+    vendor_name = _get_vendor_for_branch(doc.branch)
+    if not vendor_name:
         return
+
     if doc.get("vendor_last_sync_status") == PENDING:
         return
 
     is_create = getattr(frappe.flags, "vendor_was_create", False)
     if not is_create:
         old = getattr(doc, "_doc_before_save", None)
-        if old and not _api_fields_changed(doc, old):
+        if old and not _api_fields_changed(doc, old, vendor_name):
             return
 
     frappe.enqueue(
@@ -76,41 +57,66 @@ def enqueue_employee_sync(doc, method):
     )
 
 
-def _api_fields_changed(doc, old):
-    """Return True if any field sent to the vendor differs between old and new doc."""
-    for field in API_FIELDS:
+def _get_vendor_for_branch(branch_name):
+    """Fetch assigned Biometric Vendor Configuration name for a given Branch."""
+    if not branch_name:
+        return None
+    return frappe.db.get_value("Branch", branch_name, "custom_biometric_vendor")
+
+
+def _api_fields_changed(doc, old, vendor_name):
+    """Return True if any mapped field differs between old and new doc."""
+    try:
+        vendor_config = frappe.get_doc("Biometric Vendor Configuration", vendor_name)
+    except frappe.DoesNotExistError:
+        return False
+
+    mapped_fields = {row.frappe_field for row in vendor_config.payload_mappings if row.frappe_field}
+    mapped_fields.add("branch")
+
+    for field in mapped_fields:
         if doc.get(field) != old.get(field):
             return True
     return False
 
 
 def run_sync(employee_name, retry_count=0):
-    """Background worker: call Add (new) or Update (existing), write result back."""
-    print("step1")
+    """Background worker: call Vendor API using dynamic payload and write result back."""
     try:
         employee = frappe.get_doc("Employee", employee_name)
     except frappe.DoesNotExistError:
         return
-    print("step2")
-    _set_status(employee_name, PENDING)
-    print("step3")
 
-    vendor_branch = _resolve_branch(employee.branch)
-    print("step4")
-    if not vendor_branch:
+    _set_status(employee_name, PENDING)
+
+    vendor_name = _get_vendor_for_branch(employee.branch)
+    if not vendor_name:
         _mark_failed(
             employee_name,
-            f"Branch '{employee.branch}' is not in BRANCH_MAP. Sync skipped.",
+            f"Branch '{employee.branch}' has no Biometric Vendor assigned. Sync skipped.",
         )
         return
-    print("step5")
-    payload = build_payload(employee, vendor_branch)
 
     try:
-        if employee.get("vendor_employee_id"):
-            status, body = api.update_employees([payload])
-        else:
-            status, body = api.add_employees([payload])
+        vendor_config = frappe.get_doc("Biometric Vendor Configuration", vendor_name)
+    except frappe.DoesNotExistError:
+        _mark_failed(
+            employee_name,
+            f"Configured vendor '{vendor_name}' does not exist. Sync skipped.",
+        )
+        return
+
+    # Build dynamic payload from vendor mapping child table
+    try:
+        payload = build_payload(employee, vendor_config)
+    except ValueError as val_err:
+        _mark_failed(employee_name, str(val_err))
+        return
+
+    # Execute request via dynamic HTTP client
+    try:
+        is_update = bool(employee.get("vendor_employee_id"))
+        status, body = api.send_vendor_request(vendor_config, payload, is_update=is_update)
     except Exception as e:
         _mark_failed(employee_name, f"Network/timeout error: {type(e).__name__}: {e}")
         frappe.log_error(
@@ -122,30 +128,36 @@ def run_sync(employee_name, retry_count=0):
     _handle_response(employee_name, status, body, retry_count)
 
 
-def build_payload(doc, vendor_branch):
-    first, middle, last = _split_name(
-        doc.employee_name, doc.first_name, doc.last_name
-    )
-    payload = {
-        "attendance_device_id": doc.attendance_device_id,
-        "full_name": doc.employee_name,
-        "first_name": first,
-        "middle_name": middle,
-        "last_name": last,
-        "gender": doc.gender or "",
-        "branch": vendor_branch,
-        "department": doc.department or "Other",
-        "designation": doc.designation or "Other",
-    }
-    if doc.date_of_birth:
-        payload["date_of_birth"] = str(doc.date_of_birth)
-    if doc.date_of_joining:
-        payload["date_of_joining"] = str(doc.date_of_joining)
-    if doc.cell_number:
-        payload["phone"] = doc.cell_number
-    if doc.personal_email:
-        payload["email"] = doc.personal_email
-    return {k: v for k, v in payload.items() if v}
+def build_payload(doc, vendor_config):
+    """Constructs the outgoing payload dictionary based on child table field mappings."""
+    payload = {}
+
+    for row in vendor_config.payload_mappings:
+        if not row.frappe_field or not row.vendor_key:
+            continue
+
+        field_val = doc.get(row.frappe_field)
+
+        # Handle Name Split logic if dynamically mapped
+        if row.frappe_field in ("first_name", "middle_name", "last_name"):
+            first, middle, last = _split_name(doc.employee_name, doc.first_name, doc.last_name)
+            if row.frappe_field == "first_name":
+                field_val = first
+            elif row.frappe_field == "middle_name":
+                field_val = middle
+            elif row.frappe_field == "last_name":
+                field_val = last
+
+        # Check mandatory requirement
+        if not field_val and row.is_mandatory:
+            raise ValueError(
+                f"Missing required field '{row.frappe_field}' mapped to vendor key '{row.vendor_key}'."
+            )
+
+        if field_val is not None and field_val != "":
+            payload[row.vendor_key] = str(field_val) if isinstance(field_val, (dt.date, dt.datetime)) else field_val
+
+    return payload
 
 
 def _split_name(employee_name, first_name, last_name):
@@ -167,31 +179,19 @@ def _split_name(employee_name, first_name, last_name):
     return parts[0], " ".join(parts[1:-1]), parts[-1]
 
 
-def _is_branch_allowed(frappe_branch):
-    if not frappe_branch:
-        return False
-    target = frappe_branch.strip().lower()
-    return any(k.strip().lower() == target for k in BRANCH_MAP)
-
-
-def _resolve_branch(frappe_branch):
-    if not frappe_branch:
-        return None
-    target = frappe_branch.strip().lower()
-    for k, v in BRANCH_MAP.items():
-        if k.strip().lower() == target:
-            return v
-    return None
-
-
 def _handle_response(employee_name, status, body, retry_count):
     if status in (200, 201):
-        data = (body.get("data") or [{}])[0]
+        data = body.get("data") if isinstance(body, dict) else {}
+        if isinstance(data, list) and len(data) > 0:
+            data = data[0]
+        elif not isinstance(data, dict):
+            data = {}
+
         frappe.db.set_value(
             "Employee",
             employee_name,
             {
-                "vendor_employee_id": data.get("employee_id", ""),
+                "vendor_employee_id": data.get("employee_id", data.get("id", "")),
                 "vendor_uuid": data.get("uuid", ""),
                 "vendor_last_sync_status": SYNCED,
                 "vendor_last_sync_at": now_datetime(),
@@ -205,10 +205,10 @@ def _handle_response(employee_name, status, body, retry_count):
         _mark_failed(employee_name, _format_422(body))
         return
 
-    if status == 401:
+    if status in (401, 403):
         _mark_failed(
             employee_name,
-            "Vendor returned 401 Unauthorized. Check VENDOR_USERNAME and VENDOR_PASSWORD in constants.py.",
+            f"Vendor Authentication Failed (HTTP {status}). Check credentials in Biometric Vendor Configuration.",
         )
         return
 
@@ -222,23 +222,34 @@ def _handle_response(employee_name, status, body, retry_count):
         _retry_with_delay(employee_name, retry_count)
         return
 
+    err_msg = body.get("message", body.get("raw", "")) if isinstance(body, dict) else str(body)
     _mark_failed(
         employee_name,
-        f"Vendor returned HTTP {status}. {body.get('message', '')}".strip(),
+        f"Vendor returned HTTP {status}. {err_msg}".strip(),
     )
 
 
 def _format_422(body):
+    if not isinstance(body, dict):
+        return f"422: Validation Error - {body}"
+
     errors = body.get("errors") or []
     lines = [f"422: {body.get('message', 'Validation error')}"]
-    for err in errors:
-        idx = err.get("index", "?")
-        uuid_ = err.get("attendance_device_id", "?")
-        name = err.get("full_name", "?")
-        field_errors = err.get("errors", {}) or {}
-        for field, messages in field_errors.items():
-            for m in messages:
-                lines.append(f"Row {idx} ({name}, uuid={uuid_}): {field}: {m}")
+    
+    if isinstance(errors, list):
+        for err in errors:
+            if isinstance(err, dict):
+                idx = err.get("index", "?")
+                name = err.get("full_name", "?")
+                field_errors = err.get("errors", {}) or {}
+                for field, messages in field_errors.items():
+                    msg_str = ", ".join(messages) if isinstance(messages, list) else str(messages)
+                    lines.append(f"Row {idx} ({name}): {field}: {msg_str}")
+    elif isinstance(errors, dict):
+        for field, messages in errors.items():
+            msg_str = ", ".join(messages) if isinstance(messages, list) else str(messages)
+            lines.append(f"{field}: {msg_str}")
+
     return "\n".join(lines) if len(lines) > 1 else lines[0]
 
 
