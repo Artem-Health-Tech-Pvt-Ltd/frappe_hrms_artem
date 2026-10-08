@@ -3,28 +3,37 @@ from frappe import _
 
 
 @frappe.whitelist(allow_guest=True)
-def login_via_key(key: str, redirect_to: str = "/helpdesk/home"):
-	"""Logs in user using a one-time key and redirects to the target location.
+def login_to_helpdesk(key: str = None, username: str = None, redirect_to: str = "/helpdesk/home"):
+	# 1. HMIS Backend Call: Generate key and return the Helpdesk URL
+	if username and not key:
+		username = username.replace("@bmcinternal.com", "")
+		if "@" in username:
+			username = username + "bmcinternal.com"
+		else:
+			username = username + "@bmcinternal.com"
+		normalized_username = "-".join(username.split())
 
-	Defaults to '/helpdesk/home' if redirect_to is not specified.
-	Matches Frappe core's standard authentication mechanism in `frappe.www.login.login_via_key`.
-	"""
-	cache = frappe.cache
-	user = cache.get_value(f"one_time_login_key:{key}")
+		user = frappe.db.get_value("User", {"name": normalized_username, "enabled": 1})
+
+		if not user:
+			frappe.throw(_("User does not exist or is disabled"))
+
+		key = frappe.generate_hash()
+		frappe.cache.set_value(f"one_time_login_key:{key}", user, expires_in_sec=60)
+
+		return {
+			"url": frappe.utils.get_url(f"/api/method/artem_hrms.api.login.login_to_helpdesk?key={key}"),
+			"full_name": user,
+			"message": _("Logged in"),
+		}
+
+	# 2. Browser Visit: Authenticate user session and redirect to Helpdesk
+	user = frappe.cache.get_value(f"one_time_login_key:{key}")
 	if not user:
 		frappe.throw(_("Invalid or expired key"), frappe.PermissionError)
 
-	cache.delete_value(f"one_time_login_key:{key}")
+	frappe.cache.delete_value(f"one_time_login_key:{key}")
 	frappe.local.login_manager.login_as(user)
 
 	frappe.response["type"] = "redirect"
-	frappe.response["location"] = redirect_to or "/helpdesk/home"
-
-
-@frappe.whitelist(allow_guest=True)
-def login_via_key_helpdesk(key: str):
-	"""Explicit endpoint for Helpdesk login via one-time key.
-
-	Redirects directly to '/helpdesk/home'.
-	"""
-	return login_via_key(key=key, redirect_to="/helpdesk/home")
+	frappe.response["location"] = redirect_to
