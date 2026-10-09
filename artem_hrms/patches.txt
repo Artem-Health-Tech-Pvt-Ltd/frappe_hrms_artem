@@ -17,3 +17,4 @@ artem_hrms.patches.v1_0.recreate_employee_lifecycle_workspace
 artem_hrms.patches.v1_0.create_my_team_workspace
 artem_hrms.patches.v1_0.propagate_bmc_hrms_sidebar
 artem_hrms.vendor_integration.install
+artem_hrms.patches.property_setter_attendance_request
