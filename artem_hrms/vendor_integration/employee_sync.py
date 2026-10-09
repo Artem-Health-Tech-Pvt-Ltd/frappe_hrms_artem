@@ -17,14 +17,15 @@ from .constants import FAILED, MAX_429_RETRIES, PENDING, RETRY_DELAY_SECONDS, SY
 
 
 def ensure_attendance_device_id(doc, method):
-    """Validate hook: auto-generate UUID v4 for attendance_device_id on create.
-    Also flags whether this save is a fresh create so the sync hook knows to
-    skip the field-change check on the first sync."""
+    """Generate a device UUID for Contract employees when one is missing."""
     if frappe.flags.in_migrate or frappe.flags.in_install or frappe.flags.in_patch:
         return
+
     frappe.flags.vendor_was_create = bool(doc.is_new())
-    if doc.is_new() and not doc.attendance_device_id:
+    doc.flags.attendance_device_id_generated = False
+    if doc.employment_type == "Contract" and not doc.attendance_device_id:
         doc.attendance_device_id = str(uuid.uuid4())
+        doc.flags.attendance_device_id_generated = True
 
 
 def enqueue_employee_sync(doc, method):
@@ -44,9 +45,15 @@ def enqueue_employee_sync(doc, method):
 
     is_create = getattr(frappe.flags, "vendor_was_create", False)
     if not is_create:
-        old = getattr(doc, "_doc_before_save", None)
-        if old and not _api_fields_changed(doc, old, vendor_name):
-            return
+        generated_contract_id = (
+            doc.employment_type == "Contract"
+            and getattr(doc.flags, "attendance_device_id_generated", False)
+            and doc.get("vendor_last_sync_status") != SYNCED
+        )
+        if not generated_contract_id:
+            old = getattr(doc, "_doc_before_save", None)
+            if old and not _api_fields_changed(doc, old, vendor_name):
+                return
 
     frappe.enqueue(
         "artem_hrms.vendor_integration.employee_sync.run_sync",
@@ -59,7 +66,7 @@ def enqueue_employee_sync(doc, method):
 
 def _get_vendor_for_branch(branch_name):
     """Fetch assigned Biometric Vendor Configuration name for a given Branch."""
-    if not branch_name:
+    if not branch_name or not frappe.db.has_column("Branch", "custom_biometric_vendor"):
         return None
     return frappe.db.get_value("Branch", branch_name, "custom_biometric_vendor")
 
@@ -137,6 +144,9 @@ def build_payload(doc, vendor_config):
             continue
 
         field_val = doc.get(row.frappe_field)
+
+        if row.frappe_field == "custom_administrative_officer" and field_val:
+            field_val = frappe.db.get_value("Employee", field_val, "attendance_device_id")
 
         # Handle Name Split logic if dynamically mapped
         if row.frappe_field in ("first_name", "middle_name", "last_name"):

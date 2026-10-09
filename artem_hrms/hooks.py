@@ -92,6 +92,8 @@ doctype_js = {
 
 # before_install = "artem_hrms.install.before_install"
 # after_install = "artem_hrms.install.after_install"
+# Run custom functions after migration completes
+after_migrate = "artem_hrms.vendor_integration.install.execute"
 
 # Uninstallation
 # ------------
