@@ -21,7 +21,6 @@ def ensure_attendance_device_id(doc, method):
     if frappe.flags.in_migrate or frappe.flags.in_install or frappe.flags.in_patch:
         return
 
-    frappe.flags.vendor_was_create = bool(doc.is_new())
     doc.flags.attendance_device_id_generated = False
     if doc.employment_type == "Contract" and not doc.attendance_device_id:
         doc.attendance_device_id = str(uuid.uuid4())
@@ -40,10 +39,7 @@ def enqueue_employee_sync(doc, method):
     if not vendor_name:
         return
 
-    if doc.get("vendor_last_sync_status") == PENDING:
-        return
-
-    is_create = getattr(frappe.flags, "vendor_was_create", False)
+    is_create = (method == "on_insert")
     if not is_create:
         generated_contract_id = (
             doc.employment_type == "Contract"
@@ -94,8 +90,6 @@ def run_sync(employee_name, retry_count=0):
     except frappe.DoesNotExistError:
         return
 
-    _set_status(employee_name, PENDING)
-
     vendor_name = _get_vendor_for_branch(employee.branch)
     if not vendor_name:
         _mark_failed(
@@ -112,6 +106,11 @@ def run_sync(employee_name, retry_count=0):
             f"Configured vendor '{vendor_name}' does not exist. Sync skipped.",
         )
         return
+
+    if not vendor_config.is_active:
+        return
+
+    _set_status(employee_name, PENDING)
 
     # Build dynamic payload from vendor mapping child table
     try:
@@ -159,7 +158,7 @@ def build_payload(doc, vendor_config):
                 field_val = last
 
         # Check mandatory requirement
-        if not field_val and row.is_mandatory:
+        if (field_val is None or field_val == "") and row.is_mandatory:
             raise ValueError(
                 f"Missing required field '{row.frappe_field}' mapped to vendor key '{row.vendor_key}'."
             )
@@ -191,7 +190,7 @@ def _split_name(employee_name, first_name, last_name):
 
 def _handle_response(employee_name, status, body, retry_count):
     if status in (200, 201):
-        data = body.get("data") if isinstance(body, dict) else {}
+        data = body.get("data") if (isinstance(body, dict) and "data" in body) else body
         if isinstance(data, list) and len(data) > 0:
             data = data[0]
         elif not isinstance(data, dict):
@@ -201,8 +200,8 @@ def _handle_response(employee_name, status, body, retry_count):
             "Employee",
             employee_name,
             {
-                "vendor_employee_id": data.get("employee_id", data.get("id", "")),
-                "vendor_uuid": data.get("uuid", ""),
+                "vendor_employee_id": str(data.get("employee_id", data.get("id", ""))),
+                "vendor_uuid": str(data.get("uuid", "")),
                 "vendor_last_sync_status": SYNCED,
                 "vendor_last_sync_at": now_datetime(),
                 "vendor_last_error": "",
