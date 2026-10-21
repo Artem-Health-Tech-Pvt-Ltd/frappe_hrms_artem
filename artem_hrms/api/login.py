@@ -22,7 +22,7 @@ def login_to_helpdesk(key: str = None, username: str = None, redirect_to: str = 
 		frappe.cache.set_value(f"one_time_login_key:{key}", user, expires_in_sec=60)
 
 		return {
-			"url": frappe.utils.get_url(f"/api/method/artem_hrms.api.login.login_to_helpdesk?key={key}"),
+			"link": frappe.utils.get_url(f"/api/method/artem_hrms.api.login.login_to_helpdesk?key={key}"),
 			"full_name": user,
 			"message": _("Logged in"),
 		}
