@@ -1,0 +1,54 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_import": 0,
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-09-24 17:25:11.890406",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "frappe_field",
+  "vendor_key",
+  "is_mandatory"
+ ],
+ "fields": [
+  {
+   "fieldname": "frappe_field",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Frappe Field",
+   "reqd": 1
+  },
+  {
+   "fieldname": "vendor_key",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Vendor Key",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_mandatory",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Is Mandatory"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-24 17:25:11.890406",
+ "modified_by": "Administrator",
+ "module": "Artem Hrms",
+ "name": "Biometric Vendor Payload Mapping",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

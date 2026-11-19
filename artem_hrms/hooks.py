@@ -47,7 +47,8 @@ app_include_js = [
 # include js in doctype views
 doctype_js = {
     "Employee": "public/js/employee.js",
-    "HR Settings": "public/js/hr_settings.js"
+    "HR Settings": "public/js/hr_settings.js",
+    "Employee Checkin": "public/js/employee_checkin.js",
 }
 doctype_list_js = {
     "Employee Checkin": "public/js/employee_checkin_list.js"
@@ -96,6 +97,8 @@ doctype_list_js = {
 
 # before_install = "artem_hrms.install.before_install"
 # after_install = "artem_hrms.install.after_install"
+# Run custom functions after migration completes
+after_migrate = "artem_hrms.vendor_integration.install.execute"
 
 # Uninstallation
 # ------------
@@ -158,7 +161,8 @@ doc_events = {
         ],
     },
     "Employee Checkin": {
-        "validate": "artem_hrms.doc_events.employee_checkin.employee_validation"
+        "validate": "artem_hrms.doc_events.employee_checkin.employee_validation",
+        "before_insert": "artem_hrms.doc_events.employee_checkin.restrict_web_checkin",
     }
 }
 

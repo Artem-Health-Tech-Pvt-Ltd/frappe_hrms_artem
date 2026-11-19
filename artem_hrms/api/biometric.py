@@ -2,8 +2,8 @@ import frappe
 from frappe.utils import get_datetime
 
 
-def _log_payload(title, payload):
-    """Persist full payload to Error Log doctype for audit/debug."""
+def _log_failure(title, payload):
+    """Persist failure payloads to Error Log doctype. Only called on errors."""
     try:
         frappe.log_error(message=frappe.as_json(payload, indent=2), title=title)
     except Exception:
@@ -18,15 +18,18 @@ def checkin_ingest():
       1. uuid (if present) -> attendance_device_id
       2. user_id           -> custom_aadhar_number
     If either matches, the check-in is recorded.
+
+    Logging policy:
+      - Successful inserts are NOT logged (to avoid filling Error Log on
+        every punch).
+      - Skipped punches (missing fields, no employee match, duplicates) are
+        collected in the response `results` array but only logged to Error
+        Log when the request produces zero inserted records, OR when the
+        skipped reason is an exception (unexpected error).
+      - The incoming request payload is never logged on the happy path.
     """
 
     data = frappe.request.get_json()
-
-    # Log the incoming request payload for audit/debug
-    _log_payload(
-        title=f"Biometric API Request (device_id={data.get('device_id') if data else 'N/A'})",
-        payload=data or {}
-    )
 
     if not data:
         frappe.throw("Invalid JSON payload")
@@ -41,6 +44,7 @@ def checkin_ingest():
     skipped = 0
 
     results = []
+    skipped_results = []
 
     for p in punches:
         try:
@@ -52,25 +56,29 @@ def checkin_ingest():
             # Need at least one identifying field
             if not uuid and not user_id:
                 skipped += 1
-                results.append({
+                r = {
                     "user_id": user_id,
                     "uuid": uuid,
                     "timestamp": timestamp,
                     "status": "skipped",
                     "message": "Both uuid and user_id are missing"
-                })
+                }
+                results.append(r)
+                skipped_results.append(r)
                 continue
 
             # Missing Timestamp
             if not timestamp:
                 skipped += 1
-                results.append({
+                r = {
                     "user_id": user_id,
                     "uuid": uuid,
                     "timestamp": None,
                     "status": "skipped",
                     "message": "timestamp is missing"
-                })
+                }
+                results.append(r)
+                skipped_results.append(r)
                 continue
 
             punch_time = get_datetime(timestamp)
@@ -101,13 +109,15 @@ def checkin_ingest():
             # Employee Not Found
             if not employee:
                 skipped += 1
-                results.append({
+                r = {
                     "user_id": user_id,
                     "uuid": uuid,
                     "timestamp": timestamp,
                     "status": "skipped",
                     "message": f"No employee found (uuid='{uuid}' or user_id='{user_id}')"
-                })
+                }
+                results.append(r)
+                skipped_results.append(r)
                 continue
 
             # Duplicate Check
@@ -120,6 +130,9 @@ def checkin_ingest():
                 }
             ):
                 skipped += 1
+                # Duplicates are routine (replays from device) — not a failure.
+                # Still report in the response but don't include in the
+                # Error Log payload.
                 results.append({
                     "employee": employee,
                     "user_id": user_id,
@@ -163,7 +176,7 @@ def checkin_ingest():
                 "error": str(e),
                 "traceback": frappe.get_traceback()
             }
-            _log_payload(
+            _log_failure(
                 title=f"Biometric API Error (device_id={device_id})",
                 payload=err_payload
             )
@@ -177,6 +190,22 @@ def checkin_ingest():
             })
 
     frappe.db.commit()
+
+    # Log a single summary Error Log entry ONLY when the request had no
+    # successful inserts. This surfaces real ingestion failures without
+    # flooding the log on every successful sync.
+    if inserted == 0 and results:
+        _log_failure(
+            title=f"Biometric API Failure (device_id={device_id}, "
+                  f"received={len(punches)}, inserted=0, skipped={skipped})",
+            payload={
+                "device_id": device_id,
+                "total_received": len(punches),
+                "inserted": inserted,
+                "skipped": skipped,
+                "skipped_details": skipped_results,
+            }
+        )
 
     return {
         "status": "ok",

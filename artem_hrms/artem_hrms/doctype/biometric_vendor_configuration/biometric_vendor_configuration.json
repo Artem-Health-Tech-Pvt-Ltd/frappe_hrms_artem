@@ -1,0 +1,158 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "field:vendor_name",
+ "creation": "2026-09-24 17:25:11.890406",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_endpoint",
+  "vendor_name",
+  "api_base_url",
+  "http_method",
+  "column_break_endpoint",
+  "is_active",
+  "section_auth",
+  "auth_type",
+  "token",
+  "username",
+  "password",
+  "api_key",
+  "api_secret",
+  "custom_headers",
+  "section_mapping",
+  "payload_mappings"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_endpoint",
+   "fieldtype": "Section Break",
+   "label": "Endpoint Configuration"
+  },
+  {
+   "fieldname": "vendor_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Vendor Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "api_base_url",
+   "fieldtype": "Data",
+   "label": "API Base URL",
+   "reqd": 1
+  },
+  {
+   "default": "POST",
+   "fieldname": "http_method",
+   "fieldtype": "Select",
+   "label": "HTTP Method",
+   "options": "\nPOST\nPUT",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_endpoint",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Is Active"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_auth",
+   "fieldtype": "Section Break",
+   "label": "Authentication"
+  },
+  {
+   "fieldname": "auth_type",
+   "fieldtype": "Select",
+   "label": "Auth Type",
+   "options": "\nNo Auth\nBearer Token\nBasic Auth\nAPI Key / Secret"
+  },
+  {
+   "depends_on": "eval:doc.auth_type=='Bearer Token'",
+   "fieldname": "token",
+   "fieldtype": "Password",
+   "label": "Token"
+  },
+  {
+   "depends_on": "eval:doc.auth_type=='Basic Auth'",
+   "fieldname": "username",
+   "fieldtype": "Data",
+   "label": "Username"
+  },
+  {
+   "depends_on": "eval:doc.auth_type=='Basic Auth'",
+   "fieldname": "password",
+   "fieldtype": "Password",
+   "label": "Password"
+  },
+  {
+   "depends_on": "eval:doc.auth_type=='API Key / Secret'",
+   "fieldname": "api_key",
+   "fieldtype": "Data",
+   "label": "API Key"
+  },
+  {
+   "depends_on": "eval:doc.auth_type=='API Key / Secret'",
+   "fieldname": "api_secret",
+   "fieldtype": "Password",
+   "label": "API Secret"
+  },
+  {
+   "description": "JSON object of additional static headers, e.g. {\"X-Tenant\": \"acme\"}",
+   "fieldname": "custom_headers",
+   "fieldtype": "Code",
+   "label": "Custom Headers (JSON)",
+   "options": "JSON"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_mapping",
+   "fieldtype": "Section Break",
+   "label": "Payload Mapping"
+  },
+  {
+   "fieldname": "payload_mappings",
+   "fieldtype": "Table",
+   "label": "Payload Mappings",
+   "options": "Biometric Vendor Payload Mapping",
+   "reqd": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-24 17:25:11.890406",
+ "modified_by": "Administrator",
+ "module": "Artem Hrms",
+ "name": "Biometric Vendor Configuration",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
