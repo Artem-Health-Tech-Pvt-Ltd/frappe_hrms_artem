@@ -9,8 +9,49 @@ WEB_CHECKIN_RESTRICTION_FIELD = "custom_restrict_web_checkin"
 # entry, web form, API, etc.) is treated as a "web" check-in.
 BIOMETRIC_SOURCE = "Biometric"
 
+BRANCH_MAPPING = {
+	"Lokmanya Tilak Municipal Medical College and General Hospital Sion": (
+		"Lokmanya Tilak Municipal Medical College and General Hospital, Sion"
+	)
+}
+
+
+def normalize_branch_name(value):
+	if value and str(value).strip() in BRANCH_MAPPING:
+		return BRANCH_MAPPING[str(value).strip()]
+	return value
+
+
+def normalize_checkin_branch(doc):
+	"""Normalize branch name if received without comma in checkin payload."""
+	if not doc:
+		return
+
+	if doc.get("branch"):
+		normalized = normalize_branch_name(doc.get("branch"))
+		if hasattr(doc, "set"):
+			doc.set("branch", normalized)
+		else:
+			doc["branch"] = normalized
+
+		if not doc.get("custom_branch"):
+			if hasattr(doc, "set"):
+				doc.set("custom_branch", normalized)
+			else:
+				doc["custom_branch"] = normalized
+
+	if doc.get("custom_branch"):
+		normalized = normalize_branch_name(doc.get("custom_branch"))
+		if hasattr(doc, "set"):
+			doc.set("custom_branch", normalized)
+		else:
+			doc["custom_branch"] = normalized
+
+
 
 def employee_validation(doc, method=None):
+	normalize_checkin_branch(doc)
+
 	employee = frappe.db.get_value(
 		"Employee",
 		doc.employee,
@@ -47,6 +88,8 @@ def restrict_web_checkin(doc, method=None):
 
 	Biometric syncs set `custom_source = "Biometric"` and pass through.
 	"""
+	normalize_checkin_branch(doc)
+
 	if (doc.get("custom_source") or "").strip() == BIOMETRIC_SOURCE:
 		return
 
@@ -126,6 +169,15 @@ def is_employee_branch_web_checkin_restricted(employee):
 from hrms.hr.doctype.employee_checkin.employee_checkin import EmployeeCheckin
 
 class CustomEmployeeCheckin(EmployeeCheckin):
+
+    def validate(self):
+        normalize_checkin_branch(self)
+        super().validate()
+
+    def before_insert(self):
+        normalize_checkin_branch(self)
+        if hasattr(super(), "before_insert"):
+            super().before_insert()
 
     def validate_distance_from_shift_location(self):
         if self.custom_source == "Biometric":

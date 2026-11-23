@@ -144,6 +144,13 @@ def build_payload(doc, vendor_config):
 
         field_val = doc.get(row.frappe_field)
 
+        # Handle Branch normalization (vendor without comma -> DB with comma)
+        if hasattr(row, "transform_value"):
+            field_val = row.transform_value(field_val)
+        elif row.frappe_field == "branch" and field_val:
+            if str(field_val).strip() == "Lokmanya Tilak Municipal Medical College and General Hospital Sion":
+                field_val = "Lokmanya Tilak Municipal Medical College and General Hospital, Sion"
+
         if row.frappe_field == "custom_administrative_officer" and field_val:
             field_val = frappe.db.get_value("Employee", field_val, "attendance_device_id")
 
