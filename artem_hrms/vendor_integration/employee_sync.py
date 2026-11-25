@@ -213,7 +213,14 @@ def run_sync(employee_name, retry_count=0, modified_fields=None):
         )
         return
 
-    _handle_response(employee_name, status, body, retry_count, modified_fields=modified_fields)
+    _handle_response(
+        employee_name,
+        status,
+        body,
+        retry_count,
+        modified_fields=modified_fields,
+        is_update=is_update,
+    )
 
 
 def build_payload(doc, vendor_config, is_update=False, modified_fields=None):
@@ -308,7 +315,7 @@ def _split_name(employee_name, first_name, last_name):
     return parts[0], " ".join(parts[1:-1]), parts[-1]
 
 
-def _handle_response(employee_name, status, body, retry_count, modified_fields=None):
+def _handle_response(employee_name, status, body, retry_count, modified_fields=None, is_update=False):
     if status in (200, 201):
         data = body.get("data") if (isinstance(body, dict) and "data" in body) else body
         if isinstance(data, list) and len(data) > 0:
@@ -316,9 +323,17 @@ def _handle_response(employee_name, status, body, retry_count, modified_fields=N
         elif not isinstance(data, dict):
             data = {}
 
+        sync_time = now_datetime()
+        if isinstance(data, dict) and data.get("updated_at"):
+            try:
+                from frappe.utils import get_datetime
+                sync_time = get_datetime(data["updated_at"])
+            except Exception:
+                sync_time = now_datetime()
+
         update_values = {
             "vendor_last_sync_status": SYNCED,
-            "vendor_last_sync_at": now_datetime(),
+            "vendor_last_sync_at": sync_time,
             "vendor_last_error": "",
         }
         # Only overwrite identifiers if returned in the response
@@ -336,6 +351,7 @@ def _handle_response(employee_name, status, body, retry_count, modified_fields=N
             update_values,
             update_modified=False,
         )
+        frappe.db.commit()
         return
 
     if status == 422:
@@ -421,10 +437,10 @@ def _set_status(employee_name, status):
         employee_name,
         {
             "vendor_last_sync_status": status,
-            "vendor_last_sync_at": now_datetime(),
         },
         update_modified=False,
     )
+    frappe.db.commit()
 
 
 def _mark_failed(employee_name, error_message):
@@ -433,8 +449,8 @@ def _mark_failed(employee_name, error_message):
         employee_name,
         {
             "vendor_last_sync_status": FAILED,
-            "vendor_last_sync_at": now_datetime(),
             "vendor_last_error": error_message,
         },
         update_modified=False,
     )
+    frappe.db.commit()
