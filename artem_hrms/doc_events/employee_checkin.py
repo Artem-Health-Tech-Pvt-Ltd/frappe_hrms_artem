@@ -1,5 +1,6 @@
 import frappe
 from frappe import _
+from frappe.utils import get_datetime
 
 # Custom field on Branch that, when checked, blocks web/manual check-ins for
 # any employee whose branch is set to that branch.
@@ -48,9 +49,84 @@ def normalize_checkin_branch(doc):
 			doc["custom_branch"] = normalized
 
 
+@frappe.whitelist()
+def get_next_log_type_for_employee(employee, timestamp=None, current_doc_name=None):
+	"""Determine whether log_type should be IN or OUT for an employee on a given timestamp.
+
+	Rules:
+	- 24-hour day window (00:00:00 to 23:59:59) - resets every midnight.
+	- 1st log of the day (odd)  -> IN
+	- 2nd log of the day (even) -> OUT
+	- 3rd log of the day (odd)  -> IN
+	- 4th log of the day (even) -> OUT
+	- Odd check-in = IN, Even check-in = OUT.
+	- Independent of device (Web check-in or Biometric device).
+	- Overrides whatever log_type was provided by vendor or user.
+	"""
+	if not employee:
+		return "IN"
+
+	checkin_dt = get_datetime(timestamp) if timestamp else frappe.utils.now_datetime()
+	start_of_day = checkin_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+	end_of_day = checkin_dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+	filters = {
+		"employee": employee,
+		"time": ["between", [start_of_day, end_of_day]],
+		"docstatus": ["<", 2],
+	}
+	if current_doc_name:
+		filters["name"] = ["!=", current_doc_name]
+
+	existing_logs = frappe.get_all(
+		"Employee Checkin",
+		filters=filters,
+		fields=["name", "time"],
+		order_by="time asc, creation asc",
+	)
+
+	prior_logs_count = 0
+	for log in existing_logs:
+		log_time_val = log.get("time") if isinstance(log, dict) else getattr(log, "time", None)
+		if not log_time_val:
+			continue
+		log_time = get_datetime(log_time_val)
+		log_name = log.get("name") if isinstance(log, dict) else getattr(log, "name", None)
+
+		if log_time < checkin_dt:
+			prior_logs_count += 1
+		elif log_time == checkin_dt:
+			if current_doc_name and log_name != current_doc_name:
+				prior_logs_count += 1
+			elif not current_doc_name:
+				prior_logs_count += 1
+
+	return "IN" if (prior_logs_count % 2 == 0) else "OUT"
+
+
+def assign_dynamic_log_type(doc):
+	"""Calculate and set log_type based on alternating IN/OUT for the 24-hour day."""
+	if not doc:
+		return
+
+	employee = doc.get("employee")
+	checkin_time = doc.get("time")
+
+	if not employee or not checkin_time:
+		return
+
+	doc_name = doc.get("name") if not getattr(doc, "__islocal", False) else None
+	log_type = get_next_log_type_for_employee(employee, checkin_time, current_doc_name=doc_name)
+
+	if hasattr(doc, "set"):
+		doc.set("log_type", log_type)
+	else:
+		doc["log_type"] = log_type
+
 
 def employee_validation(doc, method=None):
 	normalize_checkin_branch(doc)
+	assign_dynamic_log_type(doc)
 
 	employee = frappe.db.get_value(
 		"Employee",
@@ -89,6 +165,7 @@ def restrict_web_checkin(doc, method=None):
 	Biometric syncs set `custom_source = "Biometric"` and pass through.
 	"""
 	normalize_checkin_branch(doc)
+	assign_dynamic_log_type(doc)
 
 	if (doc.get("custom_source") or "").strip() == BIOMETRIC_SOURCE:
 		return
@@ -172,10 +249,12 @@ class CustomEmployeeCheckin(EmployeeCheckin):
 
     def validate(self):
         normalize_checkin_branch(self)
+        assign_dynamic_log_type(self)
         super().validate()
 
     def before_insert(self):
         normalize_checkin_branch(self)
+        assign_dynamic_log_type(self)
         if hasattr(super(), "before_insert"):
             super().before_insert()
 

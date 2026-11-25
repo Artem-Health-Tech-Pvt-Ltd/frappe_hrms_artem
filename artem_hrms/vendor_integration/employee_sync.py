@@ -2,6 +2,7 @@ import datetime as dt
 import uuid
 
 import frappe
+from frappe import _
 from frappe.utils import now_datetime
 
 try:
@@ -16,8 +17,20 @@ from . import api
 from .constants import FAILED, MAX_429_RETRIES, PENDING, RETRY_DELAY_SECONDS, SYNCED
 
 
-def ensure_attendance_device_id(doc, method):
-    """Generate a device UUID for Contract employees when one is missing."""
+def is_uuid(val):
+    """Return True if val is a valid UUID string (36-char hex format)."""
+    if not val:
+        return False
+    val_str = str(val).strip()
+    try:
+        uuid_obj = uuid.UUID(val_str)
+        return str(uuid_obj) == val_str.lower()
+    except (ValueError, AttributeError, TypeError):
+        return False
+
+
+def ensure_attendance_device_id(doc, method=None):
+    """Generate a device UUID for Contract employees when one is missing, and freeze UUID values."""
     if frappe.flags.in_migrate or frappe.flags.in_install or frappe.flags.in_patch:
         return
 
@@ -25,6 +38,23 @@ def ensure_attendance_device_id(doc, method):
     if doc.employment_type == "Contract" and not doc.attendance_device_id:
         doc.attendance_device_id = str(uuid.uuid4())
         doc.flags.attendance_device_id_generated = True
+
+    # Freeze protection: Once a UUID is set, it cannot be modified afterward.
+    # Existing 10- or 12-digit numeric values are NOT frozen.
+    if not doc.is_new() and not getattr(doc.flags, "attendance_device_id_generated", False):
+        old_val = None
+        if hasattr(doc, "get_value_before_save"):
+            old_val = doc.get_value_before_save("attendance_device_id")
+        if not old_val and getattr(doc, "_doc_before_save", None):
+            old_val = doc._doc_before_save.get("attendance_device_id")
+        if not old_val and doc.name and frappe.db.exists("Employee", doc.name):
+            old_val = frappe.db.get_value("Employee", doc.name, "attendance_device_id")
+
+        if old_val and is_uuid(old_val):
+            if str(doc.attendance_device_id or "").strip() != str(old_val).strip():
+                frappe.throw(
+                    _("Attendance Device ID cannot be modified once a UUID is assigned.")
+                )
 
 
 def enqueue_employee_sync(doc, method):
@@ -40,6 +70,8 @@ def enqueue_employee_sync(doc, method):
         return
 
     is_create = (method == "on_insert")
+    modified_fields = None
+
     if not is_create:
         generated_contract_id = (
             doc.employment_type == "Contract"
@@ -47,9 +79,17 @@ def enqueue_employee_sync(doc, method):
             and doc.get("vendor_last_sync_status") != SYNCED
         )
         if not generated_contract_id:
-            old = getattr(doc, "_doc_before_save", None)
-            if old and not _api_fields_changed(doc, old, vendor_name):
-                return
+            old = doc.get_doc_before_save() if hasattr(doc, "get_doc_before_save") else getattr(doc, "_doc_before_save", None)
+            if old:
+                try:
+                    vendor_config = frappe.get_doc("Biometric Vendor Configuration", vendor_name)
+                    changed = get_changed_mapped_fields(doc, old, vendor_config)
+                    if changed is not None and not changed:
+                        return
+                    if changed:
+                        modified_fields = list(changed)
+                except frappe.DoesNotExistError:
+                    return
 
     frappe.enqueue(
         "artem_hrms.vendor_integration.employee_sync.run_sync",
@@ -57,6 +97,7 @@ def enqueue_employee_sync(doc, method):
         employee_name=doc.name,
         timeout=300,
         enqueue_after_commit=True,
+        modified_fields=modified_fields,
     )
 
 
@@ -67,6 +108,38 @@ def _get_vendor_for_branch(branch_name):
     return frappe.db.get_value("Branch", branch_name, "custom_biometric_vendor")
 
 
+def get_changed_mapped_fields(doc, old, vendor_config):
+    """Return set of frappe_fields in vendor_config that changed between old and doc."""
+    if not old:
+        return None
+
+    changed = set()
+    mapped_fields = {row.frappe_field for row in vendor_config.payload_mappings if row.frappe_field}
+    mapped_fields.add("branch")
+
+    for field in mapped_fields:
+        old_val = old.get(field)
+        new_val = doc.get(field)
+        old_str = "" if old_val is None else str(old_val).strip()
+        new_str = "" if new_val is None else str(new_val).strip()
+        if old_str != new_str:
+            changed.add(field)
+
+    # If employee_name changed, check if split name parts changed
+    if str(doc.get("employee_name") or "").strip() != str(old.get("employee_name") or "").strip():
+        old_first, old_mid, old_last = _split_name(old.get("employee_name"), old.get("first_name"), old.get("last_name"))
+        new_first, new_mid, new_last = _split_name(doc.get("employee_name"), doc.get("first_name"), doc.get("last_name"))
+        if old_first != new_first:
+            changed.add("first_name")
+        if old_mid != new_mid:
+            changed.add("middle_name")
+        if old_last != new_last:
+            changed.add("last_name")
+        changed.add("employee_name")
+
+    return changed
+
+
 def _api_fields_changed(doc, old, vendor_name):
     """Return True if any mapped field differs between old and new doc."""
     try:
@@ -74,16 +147,11 @@ def _api_fields_changed(doc, old, vendor_name):
     except frappe.DoesNotExistError:
         return False
 
-    mapped_fields = {row.frappe_field for row in vendor_config.payload_mappings if row.frappe_field}
-    mapped_fields.add("branch")
-
-    for field in mapped_fields:
-        if doc.get(field) != old.get(field):
-            return True
-    return False
+    changed = get_changed_mapped_fields(doc, old, vendor_config)
+    return bool(changed) if changed is not None else True
 
 
-def run_sync(employee_name, retry_count=0):
+def run_sync(employee_name, retry_count=0, modified_fields=None):
     """Background worker: call Vendor API using dynamic payload and write result back."""
     try:
         employee = frappe.get_doc("Employee", employee_name)
@@ -112,16 +180,30 @@ def run_sync(employee_name, retry_count=0):
 
     _set_status(employee_name, PENDING)
 
+    # Initial sync check:
+    # If the employee was already synced, or already has a vendor ID / vendor UUID assigned,
+    # then subsequent calls must call the update API. Creation API is never called a 2nd time.
+    is_initial_synced = (
+        employee.get("vendor_last_sync_status") == SYNCED
+        or bool(employee.get("vendor_employee_id"))
+        or bool(employee.get("vendor_uuid"))
+    )
+    is_update = bool(is_initial_synced)
+
     # Build dynamic payload from vendor mapping child table
     try:
-        payload = build_payload(employee, vendor_config)
+        payload = build_payload(
+            employee,
+            vendor_config,
+            is_update=is_update,
+            modified_fields=modified_fields if is_update else None,
+        )
     except ValueError as val_err:
         _mark_failed(employee_name, str(val_err))
         return
 
     # Execute request via dynamic HTTP client
     try:
-        is_update = bool(employee.get("vendor_employee_id"))
         status, body = api.send_vendor_request(vendor_config, payload, is_update=is_update)
     except Exception as e:
         _mark_failed(employee_name, f"Network/timeout error: {type(e).__name__}: {e}")
@@ -131,16 +213,38 @@ def run_sync(employee_name, retry_count=0):
         )
         return
 
-    _handle_response(employee_name, status, body, retry_count)
+    _handle_response(employee_name, status, body, retry_count, modified_fields=modified_fields)
 
 
-def build_payload(doc, vendor_config):
-    """Constructs the outgoing payload dictionary based on child table field mappings."""
+def build_payload(doc, vendor_config, is_update=False, modified_fields=None):
+    """Constructs the outgoing payload dictionary based on child table field mappings.
+    - If is_update=True:
+        Only includes modified fields along with the mandatory UUID (attendance_device_id).
+    - If is_update=False:
+        Includes all mapped fields and validates mandatory constraints.
+    """
     payload = {}
+    modified_set = set(modified_fields) if modified_fields is not None else None
+
+    # Identify vendor key mapped to attendance_device_id
+    uuid_vendor_key = "uuid"
+    for row in vendor_config.payload_mappings:
+        if row.frappe_field == "attendance_device_id" and row.vendor_key:
+            uuid_vendor_key = row.vendor_key
+            break
+
+    # Mandatory UUID value from attendance_device_id or vendor_uuid
+    uuid_val = doc.get("attendance_device_id") or doc.get("vendor_uuid")
 
     for row in vendor_config.payload_mappings:
         if not row.frappe_field or not row.vendor_key:
             continue
+
+        # In update mode, skip fields that were not modified,
+        # but ALWAYS keep attendance_device_id
+        if is_update and modified_set is not None:
+            if row.frappe_field != "attendance_device_id" and row.frappe_field not in modified_set:
+                continue
 
         field_val = doc.get(row.frappe_field)
 
@@ -164,14 +268,23 @@ def build_payload(doc, vendor_config):
             elif row.frappe_field == "last_name":
                 field_val = last
 
-        # Check mandatory requirement
-        if (field_val is None or field_val == "") and row.is_mandatory:
-            raise ValueError(
-                f"Missing required field '{row.frappe_field}' mapped to vendor key '{row.vendor_key}'."
-            )
+        # Check mandatory requirement (only enforce on initial creation)
+        if not is_update:
+            if (field_val is None or field_val == "") and row.is_mandatory:
+                raise ValueError(
+                    f"Missing required field '{row.frappe_field}' mapped to vendor key '{row.vendor_key}'."
+                )
 
         if field_val is not None and field_val != "":
             payload[row.vendor_key] = str(field_val) if isinstance(field_val, (dt.date, dt.datetime)) else field_val
+
+    # Ensure mandatory UUID is present on update
+    if is_update:
+        if not uuid_val:
+            raise ValueError(
+                _("Attendance Device ID (UUID) is required for vendor update request.")
+            )
+        payload[uuid_vendor_key] = str(uuid_val)
 
     return payload
 
@@ -195,7 +308,7 @@ def _split_name(employee_name, first_name, last_name):
     return parts[0], " ".join(parts[1:-1]), parts[-1]
 
 
-def _handle_response(employee_name, status, body, retry_count):
+def _handle_response(employee_name, status, body, retry_count, modified_fields=None):
     if status in (200, 201):
         data = body.get("data") if (isinstance(body, dict) and "data" in body) else body
         if isinstance(data, list) and len(data) > 0:
@@ -203,16 +316,24 @@ def _handle_response(employee_name, status, body, retry_count):
         elif not isinstance(data, dict):
             data = {}
 
+        update_values = {
+            "vendor_last_sync_status": SYNCED,
+            "vendor_last_sync_at": now_datetime(),
+            "vendor_last_error": "",
+        }
+        # Only overwrite identifiers if returned in the response
+        resp_emp_id = data.get("employee_id", data.get("id"))
+        if resp_emp_id:
+            update_values["vendor_employee_id"] = str(resp_emp_id)
+
+        resp_uuid = data.get("uuid")
+        if resp_uuid:
+            update_values["vendor_uuid"] = str(resp_uuid)
+
         frappe.db.set_value(
             "Employee",
             employee_name,
-            {
-                "vendor_employee_id": str(data.get("employee_id", data.get("id", ""))),
-                "vendor_uuid": str(data.get("uuid", "")),
-                "vendor_last_sync_status": SYNCED,
-                "vendor_last_sync_at": now_datetime(),
-                "vendor_last_error": "",
-            },
+            update_values,
             update_modified=False,
         )
         return
@@ -235,7 +356,7 @@ def _handle_response(employee_name, status, body, retry_count):
                 f"Rate limited (429) after {retry_count} retries. Manual intervention needed.",
             )
             return
-        _retry_with_delay(employee_name, retry_count)
+        _retry_with_delay(employee_name, retry_count, modified_fields=modified_fields)
         return
 
     err_msg = body.get("message", body.get("raw", "")) if isinstance(body, dict) else str(body)
@@ -269,7 +390,7 @@ def _format_422(body):
     return "\n".join(lines) if len(lines) > 1 else lines[0]
 
 
-def _retry_with_delay(employee_name, retry_count):
+def _retry_with_delay(employee_name, retry_count, modified_fields=None):
     if enqueue_at:
         eta = dt.datetime.now() + dt.timedelta(seconds=RETRY_DELAY_SECONDS)
         enqueue_at(
@@ -279,6 +400,7 @@ def _retry_with_delay(employee_name, retry_count):
             job_id=f"vendor-429-{employee_name}-{retry_count}",
             employee_name=employee_name,
             retry_count=retry_count + 1,
+            modified_fields=modified_fields,
         )
     else:
         frappe.enqueue(
@@ -288,6 +410,7 @@ def _retry_with_delay(employee_name, retry_count):
             employee_name=employee_name,
             enqueue_after_commit=True,
             retry_count=retry_count + 1,
+            modified_fields=modified_fields,
             timeout=300,
         )
 

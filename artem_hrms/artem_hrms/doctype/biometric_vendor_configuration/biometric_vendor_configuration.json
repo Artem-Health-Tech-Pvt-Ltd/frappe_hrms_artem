@@ -11,7 +11,9 @@
   "section_endpoint",
   "vendor_name",
   "api_base_url",
+  "api_update_url",
   "http_method",
+  "update_http_method",
   "column_break_endpoint",
   "is_active",
   "section_auth",
@@ -22,6 +24,14 @@
   "api_key",
   "api_secret",
   "custom_headers",
+  "section_update_auth",
+  "update_auth_type",
+  "update_token",
+  "update_username",
+  "update_password",
+  "update_api_key",
+  "update_api_secret",
+  "update_custom_headers",
   "section_mapping",
   "payload_mappings"
  ],
@@ -46,12 +56,26 @@
    "reqd": 1
   },
   {
+   "description": "Endpoint URL used for employee update API calls. If left empty, API Base URL will be used.",
+   "fieldname": "api_update_url",
+   "fieldtype": "Data",
+   "label": "API Update URL"
+  },
+  {
    "default": "POST",
    "fieldname": "http_method",
    "fieldtype": "Select",
    "label": "HTTP Method",
    "options": "\nPOST\nPUT",
    "reqd": 1
+  },
+  {
+   "default": "POST",
+   "description": "HTTP Method used for employee update API calls. Defaults to POST.",
+   "fieldname": "update_http_method",
+   "fieldtype": "Select",
+   "label": "Update HTTP Method",
+   "options": "\nPOST\nPUT\nPATCH"
   },
   {
    "fieldname": "column_break_endpoint",
@@ -67,7 +91,7 @@
    "collapsible": 1,
    "fieldname": "section_auth",
    "fieldtype": "Section Break",
-   "label": "Authentication"
+   "label": "Employee Creation API Authentication"
   },
   {
    "fieldname": "auth_type",
@@ -106,10 +130,59 @@
    "label": "API Secret"
   },
   {
-   "description": "JSON object of additional static headers, e.g. {\"X-Tenant\": \"acme\"}",
+   "description": "JSON object of additional static headers for Creation API, e.g. {\"X-Tenant\": \"acme\"}",
    "fieldname": "custom_headers",
    "fieldtype": "Code",
    "label": "Custom Headers (JSON)",
+   "options": "JSON"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_update_auth",
+   "fieldtype": "Section Break",
+   "label": "Employee Update API Authentication"
+  },
+  {
+   "fieldname": "update_auth_type",
+   "fieldtype": "Select",
+   "label": "Update Auth Type",
+   "options": "\nNo Auth\nBearer Token\nBasic Auth\nAPI Key / Secret"
+  },
+  {
+   "depends_on": "eval:doc.update_auth_type=='Bearer Token'",
+   "fieldname": "update_token",
+   "fieldtype": "Password",
+   "label": "Update Token"
+  },
+  {
+   "depends_on": "eval:doc.update_auth_type=='Basic Auth'",
+   "fieldname": "update_username",
+   "fieldtype": "Data",
+   "label": "Update Username"
+  },
+  {
+   "depends_on": "eval:doc.update_auth_type=='Basic Auth'",
+   "fieldname": "update_password",
+   "fieldtype": "Password",
+   "label": "Update Password"
+  },
+  {
+   "depends_on": "eval:doc.update_auth_type=='API Key / Secret'",
+   "fieldname": "update_api_key",
+   "fieldtype": "Data",
+   "label": "Update API Key"
+  },
+  {
+   "depends_on": "eval:doc.update_auth_type=='API Key / Secret'",
+   "fieldname": "update_api_secret",
+   "fieldtype": "Password",
+   "label": "Update API Secret"
+  },
+  {
+   "description": "JSON object of additional static headers for Update API, e.g. {\"X-Tenant\": \"acme\"}",
+   "fieldname": "update_custom_headers",
+   "fieldtype": "Code",
+   "label": "Update Custom Headers (JSON)",
    "options": "JSON"
   },
   {
