@@ -72,6 +72,23 @@ frappe.provide("artem_hrms.employee_checkin");
         );
     }
 
+    function update_dynamic_log_type(frm) {
+        if (!frm.is_new() || !frm.doc.employee) return;
+        frappe.call({
+            method: "artem_hrms.doc_events.employee_checkin.get_next_log_type_for_employee",
+            args: {
+                employee: frm.doc.employee,
+                timestamp: frm.doc.time || frappe.datetime.now_datetime(),
+                current_doc_name: frm.doc.name
+            },
+            callback: function(r) {
+                if (r && r.message) {
+                    frm.set_value("log_type", r.message);
+                }
+            }
+        });
+    }
+
     // ------------------------------------------------------------------
     // Form hooks (Employee Checkin) — ONLY block the NEW (create) flow.
     // Opening an existing record is allowed so users can inspect past logs.
@@ -82,12 +99,20 @@ frappe.provide("artem_hrms.employee_checkin");
             check_user_restricted().then((restricted) => {
                 if (restricted) show_msg_and_redirect_to_list();
             });
+            update_dynamic_log_type(frm);
         },
         refresh(frm) {
             if (!frm.is_new()) return;
             check_user_restricted().then((restricted) => {
                 if (restricted) show_msg_and_redirect_to_list();
             });
+            update_dynamic_log_type(frm);
+        },
+        employee(frm) {
+            update_dynamic_log_type(frm);
+        },
+        time(frm) {
+            update_dynamic_log_type(frm);
         },
     });
 
